@@ -309,3 +309,38 @@ func TestDeleteErrorKeepsMessage(t *testing.T) {
 		t.Fatalf("messages=%d err=%v loading=%v", len(a.accounts[0].messages), a.err, a.loading)
 	}
 }
+
+func TestReaderLinkNavigation(t *testing.T) {
+	a := New(mailbox.Credentials{}, &fakeStore{})
+	addAccount(a, alice, []mailbox.Summary{{UID: 1, Subject: "Daily Digest"}})
+	a.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	a.Update(messageMsg{msg: &mailbox.Message{
+		Summary: mailbox.Summary{UID: 1, Subject: "Daily Digest"},
+		HTML:    `<p><a href="https://a.io">first</a></p><p><a class="btn" href="https://b.io">Second</a></p>`,
+	}})
+
+	var opened []string
+	saved := openURL
+	openURL = func(u string) error { opened = append(opened, u); return nil }
+	defer func() { openURL = saved }()
+
+	a.Update(key("tab"))
+	a.Update(key("tab"))
+	if v := a.View(); !strings.Contains(v, "→ https://b.io") {
+		t.Fatalf("second link not focused:\n%s", v)
+	}
+	_, cmd := a.Update(key("enter"))
+	a.Update(cmd())
+	if len(opened) != 1 || opened[0] != "https://b.io" {
+		t.Fatalf("opened %v", opened)
+	}
+
+	a.Update(key("esc"))
+	if a.screen != screenReader || strings.Contains(a.View(), "→ ") {
+		t.Fatal("esc should drop link focus before leaving the reader")
+	}
+	a.Update(key("esc"))
+	if a.screen != screenInbox {
+		t.Fatal("second esc did not return to inbox")
+	}
+}

@@ -183,6 +183,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case deletedMsg:
 		return a, a.deleted(msg)
+
+	case openedMsg:
+		a.err = msg.err
+		return a, nil
 	}
 
 	switch a.screen {
@@ -325,8 +329,25 @@ func (a *App) updateInbox(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a *App) updateReader(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if k, ok := msg.(tea.KeyMsg); ok {
 		switch k.String() {
-		case "q", "esc", "backspace":
+		case "esc":
+			if !a.reader.blur() {
+				a.screen = screenInbox
+			}
+			return a, nil
+		case "q", "backspace":
 			a.screen = screenInbox
+			return a, nil
+		case "tab":
+			a.reader.step(1)
+			return a, nil
+		case "shift+tab":
+			a.reader.step(-1)
+			return a, nil
+		case "enter":
+			if l, ok := a.reader.focused(); ok {
+				a.notice = "opening " + l.URL
+				return a, open(l)
+			}
 			return a, nil
 		case "d":
 			if a.accounts[a.current].session != nil {

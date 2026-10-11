@@ -35,7 +35,9 @@ type Summary struct {
 type Message struct {
 	Summary
 	To   string
-	Body string
+	Body string // Text, or HTML crudely de-tagged when there is no Text
+	Text string // the text/plain part, if any
+	HTML string // the text/html part, if any
 }
 
 type Session struct {
@@ -114,10 +116,11 @@ func (s *Session) Read(uid imap.UID) (*Message, error) {
 	if b.Envelope != nil {
 		msg.To = formatAddrs(b.Envelope.To)
 	}
-	msg.Body, err = extractText(b.FindBodySection(section))
+	msg.Text, msg.HTML, err = extractParts(b.FindBodySection(section))
 	if err != nil {
 		return nil, err
 	}
+	msg.Body = bodyText(msg.Text, msg.HTML)
 	return msg, nil
 }
 
@@ -209,22 +212,34 @@ func formatAddrs(addrs []imap.Address) string {
 	return strings.Join(parts, ", ")
 }
 
-// extractText returns the text/plain part of a raw RFC 822 message, falling
-// back to a crudely de-tagged text/html part.
-func extractText(raw []byte) (string, error) {
+// bodyText is what to show for a message: its text/plain part, falling back
+// to a crudely de-tagged text/html part.
+func bodyText(plain, html string) string {
+	switch {
+	case plain != "":
+		return plain
+	case html != "":
+		return stripHTML(html)
+	default:
+		return "(no text content)"
+	}
+}
+
+// extractParts returns the first text/plain and text/html parts of a raw
+// RFC 822 message.
+func extractParts(raw []byte) (plain, html string, err error) {
 	r, err := mail.CreateReader(strings.NewReader(string(raw)))
 	if err != nil {
-		return "", fmt.Errorf("parse message: %w", err)
+		return "", "", fmt.Errorf("parse message: %w", err)
 	}
 
-	var plain, html string
 	for {
 		p, err := r.NextPart()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return "", fmt.Errorf("parse part: %w", err)
+			return "", "", fmt.Errorf("parse part: %w", err)
 		}
 		h, ok := p.Header.(*mail.InlineHeader)
 		if !ok {
@@ -239,15 +254,7 @@ func extractText(raw []byte) (string, error) {
 			html = string(body)
 		}
 	}
-
-	switch {
-	case plain != "":
-		return plain, nil
-	case html != "":
-		return stripHTML(html), nil
-	default:
-		return "(no text content)", nil
-	}
+	return plain, html, nil
 }
 
 var (
