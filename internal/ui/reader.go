@@ -1,7 +1,10 @@
 package ui
 
 import (
+	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -23,6 +26,7 @@ type readerModel struct {
 	rule     string // the render rule that matched, "" for the default
 	focus    int    // focused link, -1 for none
 	starts   []int  // the line each link starts on
+	raw      []byte // the message as fetched, for handing off
 }
 
 func newReader() readerModel {
@@ -38,6 +42,7 @@ func (m *readerModel) setSize(w, h int) {
 
 func (m *readerModel) show(msg *mailbox.Message) {
 	m.summary = msg.Summary
+	m.raw = msg.Raw
 	m.header = strings.Join([]string{
 		titleStyle.Render(msg.Subject),
 		labelStyle.Render("From: ") + msg.From,
@@ -124,9 +129,9 @@ func (m readerModel) View() string {
 	} else if m.rule != "" {
 		status = labelStyle.Render("rendered as " + m.rule)
 	}
-	help := "↑↓/pgup/pgdn scroll • d delete • esc/q back"
+	help := "↑↓/pgup/pgdn scroll • R open with • d delete • esc/q back"
 	if len(m.doc.Links) > 0 {
-		help = "↑↓/pgup/pgdn scroll • tab/shift+tab links • enter open • d delete • esc/q back"
+		help = "↑↓/pgup/pgdn scroll • tab/shift+tab links • enter open • R open with • d delete • esc/q back"
 	}
 	return m.header + "\n\n" + m.viewport.View() + "\n" + truncate(status, m.width) + "\n" + helpStyle.Render(help)
 }
@@ -151,4 +156,35 @@ var openURL = func(url string) error {
 
 func open(l render.Link) tea.Cmd {
 	return func() tea.Msg { return openedMsg{err: openURL(l.URL)} }
+}
+
+type handedOffMsg struct {
+	program string
+	err     error
+}
+
+// runHandler runs the --open-with program on a saved message, returning its
+// last line of output as the error when it fails.
+var runHandler = func(program, path string) error {
+	out, err := exec.Command(program, path).CombinedOutput()
+	if err != nil {
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		return fmt.Errorf("%s: %s", filepath.Base(program), lines[len(lines)-1])
+	}
+	return nil
+}
+
+// handOff saves the message as <tmp>/nmail/<uid>.eml and runs program on it.
+func handOff(program string, uid uint32, raw []byte) tea.Cmd {
+	return func() tea.Msg {
+		dir := filepath.Join(os.TempDir(), "nmail")
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return handedOffMsg{program: program, err: err}
+		}
+		path := filepath.Join(dir, fmt.Sprintf("%d.eml", uid))
+		if err := os.WriteFile(path, raw, 0o600); err != nil {
+			return handedOffMsg{program: program, err: err}
+		}
+		return handedOffMsg{program: program, err: runHandler(program, path)}
+	}
 }

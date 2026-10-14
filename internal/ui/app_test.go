@@ -2,6 +2,7 @@ package ui
 
 import (
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -342,5 +343,61 @@ func TestReaderLinkNavigation(t *testing.T) {
 	a.Update(key("esc"))
 	if a.screen != screenInbox {
 		t.Fatal("second esc did not return to inbox")
+	}
+}
+
+func TestHandOffToOpenWith(t *testing.T) {
+	a := New(mailbox.Credentials{}, &fakeStore{})
+	a.OpenWith = "/path/to/draft-reply"
+	addAccount(a, alice, []mailbox.Summary{{UID: 7, Subject: "Q4 plan"}})
+	a.Update(messageMsg{msg: &mailbox.Message{Summary: mailbox.Summary{UID: 7, Subject: "Q4 plan"}, Raw: []byte("Subject: Q4 plan\r\n\r\nHi\r\n")}})
+
+	var program, path string
+	saved := runHandler
+	runHandler = func(p, f string) error { program, path = p, f; return nil }
+	defer func() { runHandler = saved }()
+
+	_, cmd := a.Update(key("R"))
+	a.Update(cmd())
+
+	if program != "/path/to/draft-reply" || !strings.HasSuffix(path, "7.eml") {
+		t.Fatalf("ran %q with %q", program, path)
+	}
+	if b, err := os.ReadFile(path); err != nil || string(b) != "Subject: Q4 plan\r\n\r\nHi\r\n" {
+		t.Fatalf("eml = %q, %v", b, err)
+	}
+	if !strings.Contains(a.View(), "handed to draft-reply") {
+		t.Fatalf("no confirmation:\n%s", a.View())
+	}
+}
+
+func TestHandOffWithoutOpenWithShowsHint(t *testing.T) {
+	a := New(mailbox.Credentials{}, &fakeStore{})
+	addAccount(a, alice, []mailbox.Summary{{UID: 7, Subject: "Q4 plan"}})
+	a.Update(messageMsg{msg: &mailbox.Message{Summary: mailbox.Summary{UID: 7}, Raw: []byte("x")}})
+
+	_, cmd := a.Update(key("R"))
+	if cmd != nil {
+		t.Fatal("ran something without a handler")
+	}
+	if !strings.Contains(a.View(), "--open-with") {
+		t.Fatalf("no hint:\n%s", a.View())
+	}
+}
+
+func TestHandOffErrorIsShown(t *testing.T) {
+	a := New(mailbox.Credentials{}, &fakeStore{})
+	a.OpenWith = "draft-reply"
+	addAccount(a, alice, []mailbox.Summary{{UID: 7}})
+	a.Update(messageMsg{msg: &mailbox.Message{Summary: mailbox.Summary{UID: 7}, Raw: []byte("x")}})
+
+	saved := runHandler
+	runHandler = func(string, string) error { return errTest }
+	defer func() { runHandler = saved }()
+
+	_, cmd := a.Update(key("R"))
+	a.Update(cmd())
+	if a.err == nil {
+		t.Fatal("handler error not shown")
 	}
 }

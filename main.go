@@ -17,9 +17,11 @@ func main() {
 	flag.StringVar(&defaults.Host, "host", envOr("NMAIL_HOST", ""), "IMAP server address (env NMAIL_HOST)")
 	flag.StringVar(&defaults.Port, "port", envOr("NMAIL_PORT", "993"), "IMAP TLS port (env NMAIL_PORT)")
 	flag.StringVar(&defaults.Username, "user", envOr("NMAIL_USER", ""), "login username (env NMAIL_USER)")
+	openWith := flag.String("open-with", os.Getenv("NMAIL_OPEN_WITH"), "program R hands the open message to, as a .eml path (env NMAIL_OPEN_WITH)")
 	flag.Parse()
 
 	app := ui.New(defaults, account.Keyring{})
+	app.OpenWith = *openWith
 	defer app.Close()
 
 	if _, err := tea.NewProgram(app, tea.WithAltScreen()).Run(); err != nil {

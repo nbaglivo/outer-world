@@ -4,6 +4,7 @@ package ui
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -89,6 +90,10 @@ type App struct {
 	current  int
 	pending  *account         // login from the form awaiting its result
 	doomed   *mailbox.Summary // message awaiting delete confirmation
+
+	// OpenWith is the program R hands the open message to, as a .eml path
+	// (e.g. Medialuna's draft-reply). Empty disables R.
+	OpenWith string
 
 	login  loginModel
 	inbox  inboxModel
@@ -186,6 +191,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case openedMsg:
 		a.err = msg.err
+		return a, nil
+
+	case handedOffMsg:
+		a.err = msg.err
+		if msg.err == nil {
+			a.notice = "handed to " + filepath.Base(msg.program)
+		}
 		return a, nil
 	}
 
@@ -349,6 +361,12 @@ func (a *App) updateReader(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, open(l)
 			}
 			return a, nil
+		case "R":
+			if a.OpenWith == "" {
+				a.notice = "start nmail with --open-with <program> to hand messages off"
+				return a, nil
+			}
+			return a, handOff(a.OpenWith, uint32(a.reader.summary.UID), a.reader.raw)
 		case "d":
 			if a.accounts[a.current].session != nil {
 				s := a.reader.summary
