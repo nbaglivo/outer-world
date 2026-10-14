@@ -105,6 +105,9 @@ func TestInboxAndRead(t *testing.T) {
 	if strings.TrimSpace(plain.Body) != "Hi Bob!" || plain.To != "bob@example.com" {
 		t.Fatalf("plain message: %+v", plain)
 	}
+	if string(plain.Raw) != plainMsg {
+		t.Fatalf("raw message = %q", plain.Raw)
+	}
 
 	html, err := s.Read(inbox[0].UID)
 	if err != nil {

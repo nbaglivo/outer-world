@@ -38,6 +38,7 @@ type Message struct {
 	Body string // Text, or HTML crudely de-tagged when there is no Text
 	Text string // the text/plain part, if any
 	HTML string // the text/html part, if any
+	Raw  []byte // the whole RFC 822 message, for handing it to other programs
 }
 
 type Session struct {
@@ -116,7 +117,8 @@ func (s *Session) Read(uid imap.UID) (*Message, error) {
 	if b.Envelope != nil {
 		msg.To = formatAddrs(b.Envelope.To)
 	}
-	msg.Text, msg.HTML, err = extractParts(b.FindBodySection(section))
+	msg.Raw = b.FindBodySection(section)
+	msg.Text, msg.HTML, err = extractParts(msg.Raw)
 	if err != nil {
 		return nil, err
 	}
