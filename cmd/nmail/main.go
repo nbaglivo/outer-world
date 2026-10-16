@@ -20,7 +20,7 @@ func main() {
 	openWith := flag.String("open-with", os.Getenv("NMAIL_OPEN_WITH"), "program R hands the open message to, as a .eml path (env NMAIL_OPEN_WITH)")
 	flag.Parse()
 
-	app := ui.New(defaults, account.Keyring{})
+	app := ui.New(defaults, account.Keyring{Service: "nmail"})
 	app.OpenWith = *openWith
 	defer app.Close()
 
