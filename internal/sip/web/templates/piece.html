@@ -1,0 +1,13 @@
+{{define "title"}}{{.Headline}}{{end}}
+{{define "content"}}
+<article class="art">
+<p class="mono back"><a href="/">← One sip at a time</a></p>
+<h1 class="hed">{{.Headline}}</h1>
+{{if and .Dek (ne .Dek .Headline)}}<p class="dek">{{.Dek}}</p>{{end}}
+<div class="byline mono">{{with .Author}}<span>By {{.}}</span>{{end}}<span>{{.Source}}{{if and .Source .Channel}} · {{end}}{{.Channel}}</span>{{if not .Published.IsZero}}<span>{{stamp .Published}}</span>{{end}}<span>{{.Minutes}} min</span></div>
+<div class="body">
+{{.HTML}}
+</div>
+<p class="mono end">{{with .Original}}<a href="{{.}}" rel="noreferrer">open original ↗</a>{{end}}{{if and .Original .Next}} · {{end}}{{with .Next}}<a href="/p/{{.}}">next piece →</a>{{end}}</p>
+</article>
+{{end}}

@@ -1,0 +1,31 @@
+{{define "title"}}One sip at a time{{end}}
+{{define "content"}}
+<header class="mast">
+<svg class="mark" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g transform="translate(-4 0)"><path d="M18 56c0-5-3-8-4-13-2-8-1-17 5-24 5-6 14-9 21-6 4 2 5 6 5 10l3 6c.5 1 0 1.6-1 1.6h-2"/><path d="M43 39c0 2-1 3-3 3.5-2 .5-3 2-3 4v9"/><g transform="rotate(-28 45 31)"><path d="M45 31h13v6.5c0 4-3 6.5-6.5 6.5S45 41.5 45 37.5z"/><path d="M58 33c2.6 0 3.8 1.3 3.8 2.8S60.6 38.6 58 38.6"/></g><path d="M54 19c-1.2-2.2 1.2-3.3 0-5.5"/><path d="M37 24.5c1 1 2.4 1 3.4 0"/></g></svg>
+<h1>One sip at a time</h1>
+</header>
+<div class="meta-row mono"><span>{{longdate .Edition.Cutoff}}</span>{{if not .Edition.Empty}}<span>{{.Edition.Count}} {{if eq .Edition.Count 1}}piece{{else}}pieces{{end}} · ~{{.Edition.Minutes}} min</span>{{end}}</div>
+{{if .Edition.Empty}}
+<p class="empty">Nothing new since yesterday morning. Enjoy the coffee.</p>
+{{else}}
+<div class="grid">
+<section>
+<div class="kicker">Lead</div>
+{{with .Lead}}<h2 class="hed lead"><a href="/p/{{.N}}">{{.Headline}}</a></h2>
+<p class="dek">{{if and .Dek (ne .Dek .Headline)}}{{.Dek}} {{end}}<span class="mono">{{.Minutes}} min</span></p>{{end}}
+{{if .Longer}}
+<div class="kicker longer">Longer reads</div>
+{{range .Longer}}<h3 class="hed"><a href="/p/{{.N}}">{{.Headline}}</a></h3>
+<p class="dek">{{if and .Dek (ne .Dek .Headline)}}{{.Dek}} {{end}}<span class="mono">{{.Minutes}} min</span></p>
+{{end}}{{end}}
+</section>
+{{if .Briefs}}
+<section class="col-rule">
+<div class="kicker">Briefs</div>
+{{range .Briefs}}<a class="brief" href="/p/{{.N}}">{{excerpt .Piece}}</a>
+{{end}}
+</section>
+{{end}}
+</div>
+{{end}}
+{{end}}
