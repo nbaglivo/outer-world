@@ -41,10 +41,28 @@ func TestSaveLoadForget(t *testing.T) {
 
 func TestLoadSingleLoginFormat(t *testing.T) {
 	keyring.MockInit()
-	keyring.Set(service, user, `{"Host":"h","Port":"993","Username":"u","Password":"pw"}`)
+	keyring.Set(defaultService, user, `{"Host":"h","Port":"993","Username":"u","Password":"pw"}`)
 	got, err := Keyring{}.Load()
 	want := []mailbox.Credentials{{Host: "h", Port: "993", Username: "u", Password: "pw"}}
 	if err != nil || !slices.Equal(got, want) {
 		t.Fatalf("got %+v err=%v", got, err)
+	}
+}
+
+func TestServicesAreSeparate(t *testing.T) {
+	keyring.MockInit()
+	nm, sip := Keyring{}, Keyring{Service: "sip"}
+	a := []mailbox.Credentials{{Host: "h", Port: "993", Username: "me", Password: "a"}}
+	if err := sip.Save(a); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := nm.Load(); len(list) != 0 {
+		t.Fatalf("nmail sees sip's logins: %+v", list)
+	}
+	if got, _ := (Keyring{Service: "nmail"}).Load(); len(got) != 0 {
+		t.Fatal("explicit nmail service differs from the default")
+	}
+	if got, _ := sip.Load(); !slices.Equal(got, a) {
+		t.Fatalf("sip load = %+v", got)
 	}
 }

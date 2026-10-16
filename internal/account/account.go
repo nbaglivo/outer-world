@@ -12,16 +12,24 @@ import (
 )
 
 const (
-	service = "nmail"
-	user    = "default"
+	defaultService = "nmail"
+	user           = "default"
 )
 
-// Keyring stores every remembered login as one keychain item.
-type Keyring struct{}
+// Keyring stores every remembered login as one keychain item. An empty
+// Service means "nmail".
+type Keyring struct{ Service string }
+
+func (k Keyring) service() string {
+	if k.Service == "" {
+		return defaultService
+	}
+	return k.Service
+}
 
 // Load returns the remembered logins, if any.
-func (Keyring) Load() ([]mailbox.Credentials, error) {
-	s, err := keyring.Get(service, user)
+func (k Keyring) Load() ([]mailbox.Credentials, error) {
+	s, err := keyring.Get(k.service(), user)
 	if errors.Is(err, keyring.ErrNotFound) {
 		return nil, nil
 	}
@@ -41,9 +49,9 @@ func (Keyring) Load() ([]mailbox.Credentials, error) {
 }
 
 // Save replaces the remembered logins; an empty list removes the item.
-func (Keyring) Save(list []mailbox.Credentials) error {
+func (k Keyring) Save(list []mailbox.Credentials) error {
 	if len(list) == 0 {
-		err := keyring.Delete(service, user)
+		err := keyring.Delete(k.service(), user)
 		if err != nil && !errors.Is(err, keyring.ErrNotFound) {
 			return fmt.Errorf("forget logins: %w", err)
 		}
@@ -53,7 +61,7 @@ func (Keyring) Save(list []mailbox.Credentials) error {
 	if err != nil {
 		return err
 	}
-	if err := keyring.Set(service, user, string(b)); err != nil {
+	if err := keyring.Set(k.service(), user, string(b)); err != nil {
 		return fmt.Errorf("save logins: %w", err)
 	}
 	return nil
