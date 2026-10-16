@@ -16,6 +16,7 @@ import (
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
+	gomessage "github.com/emersion/go-message"
 	_ "github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/mail"
 )
@@ -125,20 +126,21 @@ func (s *Session) Read(uid imap.UID) (*Message, error) {
 }
 
 // Window returns the INBOX messages that arrived at or after from and before
-// to, oldest first. It never marks anything seen.
-func (s *Session) Window(from, to time.Time) ([]*Message, error) {
+// to, oldest first. It never marks anything seen. A message whose body can't
+// be parsed is left out and reported in skipped instead of failing the rest.
+func (s *Session) Window(from, to time.Time) (msgs []*Message, skipped []error, err error) {
 	if _, err := s.client.Select("INBOX", &imap.SelectOptions{ReadOnly: true}).Wait(); err != nil {
-		return nil, fmt.Errorf("select INBOX: %w", err)
+		return nil, nil, fmt.Errorf("select INBOX: %w", err)
 	}
 	// SINCE is a date in the server's zone, which may be a day behind from's;
 	// search a day earlier and trim on the internal date below.
 	found, err := s.client.UIDSearch(&imap.SearchCriteria{Since: from.AddDate(0, 0, -1)}, nil).Wait()
 	if err != nil {
-		return nil, fmt.Errorf("search: %w", err)
+		return nil, nil, fmt.Errorf("search: %w", err)
 	}
 	uids := found.AllUIDs()
 	if len(uids) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	section := &imap.FetchItemBodySection{Peek: true}
@@ -150,22 +152,22 @@ func (s *Session) Window(from, to time.Time) ([]*Message, error) {
 		BodySection:  []*imap.FetchItemBodySection{section},
 	}).Collect()
 	if err != nil {
-		return nil, fmt.Errorf("fetch: %w", err)
+		return nil, nil, fmt.Errorf("fetch: %w", err)
 	}
 
-	var out []*Message
 	for _, b := range bufs {
 		if b.InternalDate.Before(from) || !b.InternalDate.Before(to) {
 			continue
 		}
 		m, err := message(b, section)
 		if err != nil {
-			return nil, err
+			skipped = append(skipped, fmt.Errorf("message %d %q: %w", b.UID, summarize(b).Subject, err))
+			continue
 		}
-		out = append(out, m)
+		msgs = append(msgs, m)
 	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].Arrived.Before(out[j].Arrived) })
-	return out, nil
+	sort.SliceStable(msgs, func(i, j int) bool { return msgs[i].Arrived.Before(msgs[j].Arrived) })
+	return msgs, skipped, nil
 }
 
 // message builds a Message from a fetched buffer that includes section.
@@ -193,7 +195,7 @@ func message(b *imapclient.FetchMessageBuffer, section *imap.FetchItemBodySectio
 // zero for the caller.
 func Parse(raw []byte) (*Message, error) {
 	r, err := mail.CreateReader(bytes.NewReader(raw))
-	if err != nil {
+	if err != nil && !gomessage.IsUnknownCharset(err) {
 		return nil, fmt.Errorf("parse message: %w", err)
 	}
 	h := r.Header
@@ -342,10 +344,10 @@ func bodyText(plain, html string) string {
 }
 
 // extractParts returns the first text/plain and text/html parts of a raw
-// RFC 822 message.
+// RFC 822 message. A part in an unknown charset is kept as its raw bytes.
 func extractParts(raw []byte) (plain, html string, err error) {
 	r, err := mail.CreateReader(strings.NewReader(string(raw)))
-	if err != nil {
+	if err != nil && !gomessage.IsUnknownCharset(err) {
 		return "", "", fmt.Errorf("parse message: %w", err)
 	}
 
@@ -354,7 +356,7 @@ func extractParts(raw []byte) (plain, html string, err error) {
 		if err == io.EOF {
 			break
 		}
-		if err != nil {
+		if err != nil && !gomessage.IsUnknownCharset(err) {
 			return "", "", fmt.Errorf("parse part: %w", err)
 		}
 		h, ok := p.Header.(*mail.InlineHeader)

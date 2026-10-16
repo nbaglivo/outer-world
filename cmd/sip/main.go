@@ -68,7 +68,7 @@ func run(store account.Keyring, c mailbox.Credentials) error {
 	if err != nil {
 		return err
 	}
-	ed, err := buildEdition(session, time.Now(), time.Local)
+	ed, err := buildEdition(session, time.Now(), time.Local, os.Stderr)
 	session.Close()
 	if err != nil {
 		return err

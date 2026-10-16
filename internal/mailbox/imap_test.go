@@ -124,7 +124,7 @@ func TestWindow(t *testing.T) {
 	appendAt(t, s, listMsg("second"), day.Add(-time.Minute))
 	appendAt(t, s, listMsg("at-cutoff"), day)
 
-	got, err := s.Window(day.Add(-24*time.Hour), day)
+	got, _, err := s.Window(day.Add(-24*time.Hour), day)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,12 +152,12 @@ func TestWindow(t *testing.T) {
 func TestWindowEmpty(t *testing.T) {
 	s := newEmptySession(t)
 	day := time.Date(2026, 10, 16, 6, 30, 0, 0, time.UTC)
-	got, err := s.Window(day.Add(-24*time.Hour), day)
+	got, _, err := s.Window(day.Add(-24*time.Hour), day)
 	if err != nil || len(got) != 0 {
 		t.Fatalf("got %v, %v; want none", got, err)
 	}
 	appendAt(t, s, listMsg("old"), day.Add(-72*time.Hour))
-	got, err = s.Window(day.Add(-24*time.Hour), day)
+	got, _, err = s.Window(day.Add(-24*time.Hour), day)
 	if err != nil || len(got) != 0 {
 		t.Fatalf("got %v, %v; want none", got, err)
 	}
@@ -168,7 +168,7 @@ func TestWindowIsReadOnly(t *testing.T) {
 	day := time.Date(2026, 10, 16, 6, 30, 0, 0, time.UTC)
 	appendAt(t, s, listMsg("a"), day.Add(-time.Hour))
 	appendAt(t, s, listMsg("b"), day.Add(-2*time.Hour))
-	if got, err := s.Window(day.Add(-24*time.Hour), day); err != nil || len(got) != 2 {
+	if got, _, err := s.Window(day.Add(-24*time.Hour), day); err != nil || len(got) != 2 {
 		t.Fatalf("got %v, %v", got, err)
 	}
 	inbox, err := s.Inbox(10)
@@ -334,11 +334,64 @@ func TestWindowFromAheadOfServerDate(t *testing.T) {
 	from := time.Date(2026, 10, 16, 6, 30, 0, 0, east)
 	appendAt(t, s, listMsg("early"), from.Add(time.Minute).UTC())
 
-	got, err := s.Window(from, from.Add(24*time.Hour))
+	got, _, err := s.Window(from, from.Add(24*time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 1 || got[0].Subject != "early" {
 		t.Fatalf("got %d messages, want early: %+v", len(got), got)
+	}
+}
+
+const unknownCharsetMsg = "From: news@example.com\r\n" +
+	"Subject: odd charset\r\n" +
+	"Content-Type: text/plain; charset=x-unknown-zz\r\n" +
+	"\r\n" +
+	"raw words\r\n"
+
+const brokenMultipartMsg = "From: news@example.com\r\n" +
+	"Subject: broken\r\n" +
+	"MIME-Version: 1.0\r\n" +
+	"Content-Type: multipart/alternative; boundary=XX\r\n" +
+	"\r\n" +
+	"--XX\r\n" +
+	"Content-Type: text/plain\r\n" +
+	"\r\n" +
+	"never ends\r\n"
+
+func TestWindowSkipsUnparsable(t *testing.T) {
+	s := newEmptySession(t)
+	day := time.Date(2026, 10, 16, 6, 30, 0, 0, time.UTC)
+	appendAt(t, s, listMsg("good"), day.Add(-3*time.Hour))
+	appendAt(t, s, unknownCharsetMsg, day.Add(-2*time.Hour))
+	appendAt(t, s, brokenMultipartMsg, day.Add(-90*time.Minute))
+	appendAt(t, s, listMsg("also-good"), day.Add(-time.Hour))
+
+	got, skipped, err := s.Window(day.Add(-24*time.Hour), day)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var subjects []string
+	for _, m := range got {
+		subjects = append(subjects, m.Subject)
+	}
+	if want := []string{"good", "odd charset", "also-good"}; !slices.Equal(subjects, want) {
+		t.Fatalf("subjects = %q, want %q", subjects, want)
+	}
+	if got[1].Text != "raw words\r\n" {
+		t.Errorf("unknown-charset Text = %q, want the raw bytes", got[1].Text)
+	}
+	if len(skipped) != 1 || !strings.Contains(skipped[0].Error(), "broken") {
+		t.Errorf("skipped = %v, want the broken message", skipped)
+	}
+}
+
+func TestParseUnknownCharset(t *testing.T) {
+	m, err := Parse([]byte(unknownCharsetMsg))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Subject != "odd charset" || m.Text != "raw words\r\n" {
+		t.Errorf("Subject=%q Text=%q", m.Subject, m.Text)
 	}
 }

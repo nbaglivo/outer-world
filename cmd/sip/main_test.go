@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"errors"
+	"io"
 	"slices"
 	"strings"
 	"testing"
@@ -16,12 +18,13 @@ import (
 type fakeWindow struct {
 	from, to time.Time
 	msgs     []*mailbox.Message
+	skipped  []error
 	err      error
 }
 
-func (f *fakeWindow) Window(from, to time.Time) ([]*mailbox.Message, error) {
+func (f *fakeWindow) Window(from, to time.Time) ([]*mailbox.Message, []error, error) {
 	f.from, f.to = from, to
-	return f.msgs, f.err
+	return f.msgs, f.skipped, f.err
 }
 
 func TestBuildEditionWindow(t *testing.T) {
@@ -38,7 +41,7 @@ func TestBuildEditionWindow(t *testing.T) {
 	}
 	w := &fakeWindow{msgs: []*mailbox.Message{msg("a", 1), msg("b", 5)}}
 
-	ed, err := buildEdition(w, time.Date(2026, 10, 16, 5, 50, 0, 0, madrid), madrid)
+	ed, err := buildEdition(w, time.Date(2026, 10, 16, 5, 50, 0, 0, madrid), madrid, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,9 +58,27 @@ func TestBuildEditionWindow(t *testing.T) {
 
 func TestBuildEditionError(t *testing.T) {
 	boom := errors.New("boom")
-	_, err := buildEdition(&fakeWindow{err: boom}, time.Now(), time.UTC)
+	_, err := buildEdition(&fakeWindow{err: boom}, time.Now(), time.UTC, io.Discard)
 	if !errors.Is(err, boom) {
 		t.Fatalf("err = %v, want it to wrap boom", err)
+	}
+}
+
+func TestBuildEditionWarnsAboutSkipped(t *testing.T) {
+	w := &fakeWindow{
+		msgs:    []*mailbox.Message{{MessageID: "a", Text: "words", Arrived: time.Date(2026, 10, 15, 9, 0, 0, 0, time.UTC)}},
+		skipped: []error{errors.New(`message 7 "broken": parse part: EOF`)},
+	}
+	var warn bytes.Buffer
+	ed, err := buildEdition(w, time.Date(2026, 10, 16, 8, 0, 0, 0, time.UTC), time.UTC, &warn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "sip: skipped message 7 \"broken\": parse part: EOF\n"; warn.String() != want {
+		t.Errorf("warning = %q, want %q", warn.String(), want)
+	}
+	if ed.Count() != 1 {
+		t.Errorf("Count = %d, want 1", ed.Count())
 	}
 }
 
