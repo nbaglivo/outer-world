@@ -213,3 +213,20 @@ func TestBriefExcerptPrefersText(t *testing.T) {
 		t.Errorf("excerpt = %q", got)
 	}
 }
+
+func TestPagesAreLockedDown(t *testing.T) {
+	ed, loc := fixture(t)
+	h := Handler(ed, loc)
+	const csp = "default-src 'none'; img-src http: https: data:; style-src 'self'; font-src 'self'"
+	for _, path := range []string{"/", "/p/1", "/assets/style.css", "/p/99"} {
+		rec := get(t, h, path)
+		if got := rec.Header().Get("Content-Security-Policy"); got != csp {
+			t.Errorf("%s: CSP = %q", path, got)
+		}
+	}
+	for _, path := range []string{"/", "/p/1"} {
+		if body := get(t, h, path).Body.String(); !strings.Contains(body, `<meta name="referrer" content="no-referrer">`) {
+			t.Errorf("%s lacks the no-referrer meta", path)
+		}
+	}
+}

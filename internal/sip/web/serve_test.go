@@ -33,3 +33,34 @@ func TestServe(t *testing.T) {
 		t.Fatalf("wait = %v", err)
 	}
 }
+
+func TestServeRejectsForeignHost(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	url, _, err := Serve(ctx, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := url[strings.LastIndex(url, ":")+1:]
+	for host, want := range map[string]int{
+		"127.0.0.1:" + port:    http.StatusOK,
+		"localhost:" + port:    http.StatusOK,
+		"evil.example:" + port: http.StatusForbidden,
+		"localhost":            http.StatusForbidden,
+		"127.0.0.1:1":          http.StatusForbidden,
+	} {
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Host = host
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != want {
+			t.Errorf("Host %q: status = %d, want %d", host, resp.StatusCode, want)
+		}
+	}
+}

@@ -19,6 +19,10 @@ import (
 // briefChars is roughly how much of a brief the front page shows.
 const briefChars = 280
 
+// csp lets pages load remote images but nothing else from elsewhere, and run
+// no script at all: piece bodies are newsletter HTML.
+const csp = "default-src 'none'; img-src http: https: data:; style-src 'self'; font-src 'self'"
+
 //go:embed templates assets
 var files embed.FS
 
@@ -83,7 +87,10 @@ func Handler(ed edition.Edition, loc *time.Location) http.Handler {
 		render(w, page, pp)
 	})
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServerFS(assets)))
-	return mux
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy", csp)
+		mux.ServeHTTP(w, r)
+	})
 }
 
 func parse(funcs template.FuncMap, name string) *template.Template {
