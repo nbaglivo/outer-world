@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
@@ -37,15 +38,27 @@ const htmlMsg = "From: carol@example.com\r\n" +
 // in INBOX, plus any extra mailboxes.
 func newTestSession(t *testing.T, extra map[string]*imap.CreateOptions) *Session {
 	t.Helper()
+	s := newEmptySession(t, extra)
+	for _, raw := range []string{plainMsg, htmlMsg} {
+		appendAt(t, s, raw, time.Time{})
+	}
+	return s
+}
+
+// newEmptySession is newTestSession without any messages.
+func newEmptySession(t *testing.T, extra ...map[string]*imap.CreateOptions) *Session {
+	t.Helper()
 
 	mem := imapmemserver.New()
 	user := imapmemserver.NewUser("bob", "secret")
 	if err := user.Create("INBOX", nil); err != nil {
 		t.Fatal(err)
 	}
-	for name, opts := range extra {
-		if err := user.Create(name, opts); err != nil {
-			t.Fatal(err)
+	for _, m := range extra {
+		for name, opts := range m {
+			if err := user.Create(name, opts); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	mem.AddUser(user)
@@ -71,17 +84,102 @@ func newTestSession(t *testing.T, extra map[string]*imap.CreateOptions) *Session
 	if err := c.Login("bob", "secret").Wait(); err != nil {
 		t.Fatal(err)
 	}
-	for _, raw := range []string{plainMsg, htmlMsg} {
-		cmd := c.Append("INBOX", int64(len(raw)), nil)
-		cmd.Write([]byte(raw))
-		cmd.Close()
-		if _, err := cmd.Wait(); err != nil {
-			t.Fatal(err)
-		}
-	}
 	s := &Session{client: c}
 	t.Cleanup(s.Close)
 	return s
+}
+
+// appendAt adds raw to INBOX with the given internal date (server's now if zero).
+func appendAt(t *testing.T, s *Session, raw string, at time.Time) {
+	t.Helper()
+	var opts *imap.AppendOptions
+	if !at.IsZero() {
+		opts = &imap.AppendOptions{Time: at}
+	}
+	cmd := s.client.Append("INBOX", int64(len(raw)), opts)
+	cmd.Write([]byte(raw))
+	cmd.Close()
+	if _, err := cmd.Wait(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func listMsg(subject string) string {
+	return "From: Weekly <news@example.com>\r\n" +
+		"To: bob@example.com\r\n" +
+		"Subject: " + subject + "\r\n" +
+		"Message-ID: <" + subject + "@example.com>\r\n" +
+		"List-Id: Weekly <weekly.example.com>\r\n" +
+		"List-Post: <https://example.com/p/1>\r\n" +
+		"Content-Type: text/plain; charset=utf-8\r\n" +
+		"\r\n" +
+		"body of " + subject + "\r\n"
+}
+
+func TestWindow(t *testing.T) {
+	s := newEmptySession(t)
+	day := time.Date(2026, 10, 16, 6, 30, 0, 0, time.UTC)
+	appendAt(t, s, listMsg("before"), day.Add(-24*time.Hour-time.Minute))
+	appendAt(t, s, listMsg("first"), day.Add(-24*time.Hour))
+	appendAt(t, s, listMsg("second"), day.Add(-time.Minute))
+	appendAt(t, s, listMsg("at-cutoff"), day)
+
+	got, err := s.Window(day.Add(-24*time.Hour), day)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Subject != "first" || got[1].Subject != "second" {
+		t.Fatalf("got %d messages, want first and second: %+v", len(got), got)
+	}
+	m := got[0]
+	if !m.Arrived.Equal(day.Add(-24 * time.Hour)) {
+		t.Errorf("Arrived = %v", m.Arrived)
+	}
+	if !got[1].Arrived.Equal(day.Add(-time.Minute)) {
+		t.Errorf("second Arrived = %v", got[1].Arrived)
+	}
+	if m.ListID != "Weekly <weekly.example.com>" || m.ListPost != "<https://example.com/p/1>" {
+		t.Errorf("ListID=%q ListPost=%q", m.ListID, m.ListPost)
+	}
+	if m.MessageID != "first@example.com" || m.FromAddr != "news@example.com" {
+		t.Errorf("MessageID=%q FromAddr=%q", m.MessageID, m.FromAddr)
+	}
+	if len(m.Raw) == 0 {
+		t.Error("Raw is empty")
+	}
+}
+
+func TestWindowEmpty(t *testing.T) {
+	s := newEmptySession(t)
+	day := time.Date(2026, 10, 16, 6, 30, 0, 0, time.UTC)
+	got, err := s.Window(day.Add(-24*time.Hour), day)
+	if err != nil || len(got) != 0 {
+		t.Fatalf("got %v, %v; want none", got, err)
+	}
+	appendAt(t, s, listMsg("old"), day.Add(-72*time.Hour))
+	got, err = s.Window(day.Add(-24*time.Hour), day)
+	if err != nil || len(got) != 0 {
+		t.Fatalf("got %v, %v; want none", got, err)
+	}
+}
+
+func TestWindowIsReadOnly(t *testing.T) {
+	s := newEmptySession(t)
+	day := time.Date(2026, 10, 16, 6, 30, 0, 0, time.UTC)
+	appendAt(t, s, listMsg("a"), day.Add(-time.Hour))
+	appendAt(t, s, listMsg("b"), day.Add(-2*time.Hour))
+	if got, err := s.Window(day.Add(-24*time.Hour), day); err != nil || len(got) != 2 {
+		t.Fatalf("got %v, %v", got, err)
+	}
+	inbox, err := s.Inbox(10)
+	if err != nil || len(inbox) != 2 {
+		t.Fatalf("got %v, %v", inbox, err)
+	}
+	for _, m := range inbox {
+		if m.Seen {
+			t.Errorf("%q was marked seen", m.Subject)
+		}
+	}
 }
 
 func TestInboxAndRead(t *testing.T) {

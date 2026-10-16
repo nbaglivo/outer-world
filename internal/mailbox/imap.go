@@ -3,8 +3,11 @@
 package mailbox
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"io"
+	"net/textproto"
 	"regexp"
 	"slices"
 	"sort"
@@ -39,6 +42,12 @@ type Message struct {
 	Text string // the text/plain part, if any
 	HTML string // the text/html part, if any
 	Raw  []byte // the whole RFC 822 message, for handing it to other programs
+
+	Arrived   time.Time // the IMAP internal date
+	FromAddr  string    // first From address, user@domain
+	MessageID string    // envelope Message-ID, without <>
+	ListID    string    // raw List-Id header value
+	ListPost  string    // raw List-Post header value
 }
 
 type Session struct {
@@ -100,10 +109,11 @@ func (s *Session) Inbox(limit uint32) ([]Summary, error) {
 func (s *Session) Read(uid imap.UID) (*Message, error) {
 	section := &imap.FetchItemBodySection{Peek: true}
 	bufs, err := s.client.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{
-		UID:         true,
-		Envelope:    true,
-		Flags:       true,
-		BodySection: []*imap.FetchItemBodySection{section},
+		UID:          true,
+		Envelope:     true,
+		Flags:        true,
+		InternalDate: true,
+		BodySection:  []*imap.FetchItemBodySection{section},
 	}).Collect()
 	if err != nil {
 		return nil, fmt.Errorf("fetch: %w", err)
@@ -111,19 +121,80 @@ func (s *Session) Read(uid imap.UID) (*Message, error) {
 	if len(bufs) == 0 {
 		return nil, fmt.Errorf("message %d not found", uid)
 	}
+	return message(bufs[0], section)
+}
 
-	b := bufs[0]
-	msg := &Message{Summary: summarize(b)}
-	if b.Envelope != nil {
-		msg.To = formatAddrs(b.Envelope.To)
+// Window returns the INBOX messages that arrived at or after from and before
+// to, oldest first. It never marks anything seen.
+func (s *Session) Window(from, to time.Time) ([]*Message, error) {
+	if _, err := s.client.Select("INBOX", &imap.SelectOptions{ReadOnly: true}).Wait(); err != nil {
+		return nil, fmt.Errorf("select INBOX: %w", err)
+	}
+	found, err := s.client.UIDSearch(&imap.SearchCriteria{Since: from}, nil).Wait()
+	if err != nil {
+		return nil, fmt.Errorf("search: %w", err)
+	}
+	uids := found.AllUIDs()
+	if len(uids) == 0 {
+		return nil, nil
+	}
+
+	section := &imap.FetchItemBodySection{Peek: true}
+	bufs, err := s.client.Fetch(imap.UIDSetNum(uids...), &imap.FetchOptions{
+		UID:          true,
+		Envelope:     true,
+		Flags:        true,
+		InternalDate: true,
+		BodySection:  []*imap.FetchItemBodySection{section},
+	}).Collect()
+	if err != nil {
+		return nil, fmt.Errorf("fetch: %w", err)
+	}
+
+	var out []*Message
+	for _, b := range bufs {
+		if b.InternalDate.Before(from) || !b.InternalDate.Before(to) {
+			continue
+		}
+		m, err := message(b, section)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Arrived.Before(out[j].Arrived) })
+	return out, nil
+}
+
+// message builds a Message from a fetched buffer that includes section.
+func message(b *imapclient.FetchMessageBuffer, section *imap.FetchItemBodySection) (*Message, error) {
+	msg := &Message{Summary: summarize(b), Arrived: b.InternalDate}
+	if env := b.Envelope; env != nil {
+		msg.To = formatAddrs(env.To)
+		msg.MessageID = strings.Trim(env.MessageID, "<>")
+		if len(env.From) > 0 {
+			msg.FromAddr = env.From[0].Addr()
+		}
 	}
 	msg.Raw = b.FindBodySection(section)
+	msg.ListID, msg.ListPost = listHeaders(msg.Raw)
+	var err error
 	msg.Text, msg.HTML, err = extractParts(msg.Raw)
 	if err != nil {
 		return nil, err
 	}
 	msg.Body = bodyText(msg.Text, msg.HTML)
 	return msg, nil
+}
+
+// listHeaders returns the raw List-Id and List-Post header values of a raw
+// RFC 822 message, or "" for each that is missing or unparsable.
+func listHeaders(raw []byte) (listID, listPost string) {
+	h, err := textproto.NewReader(bufio.NewReader(bytes.NewReader(raw))).ReadMIMEHeader()
+	if h == nil && err != nil {
+		return "", ""
+	}
+	return strings.TrimSpace(h.Get("List-Id")), strings.TrimSpace(h.Get("List-Post"))
 }
 
 // Delete removes the INBOX message with the given UID. It is moved to the
