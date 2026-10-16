@@ -11,6 +11,7 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/net v0.61.0
+	golang.org/x/term v0.47.0
 )
 
 require (
