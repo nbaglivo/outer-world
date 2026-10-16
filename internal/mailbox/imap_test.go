@@ -287,3 +287,38 @@ func assertInbox(t *testing.T, s *Session, subjects ...string) {
 		t.Fatalf("INBOX = %q, want %q", got, subjects)
 	}
 }
+
+func TestParse(t *testing.T) {
+	raw := "From: \"Robin R\" <robin@example.com>\r\n" +
+		"To: bob@example.com\r\n" +
+		"Subject: Hello\r\n" +
+		"Date: Mon, 05 Oct 2026 10:00:00 +0000\r\n" +
+		"Message-ID: <abc@example.com>\r\n" +
+		"List-Id: \"Money Stuff\" <money.example.com>\r\n" +
+		"List-Post: <https://example.com/p/9>\r\n" +
+		"Content-Type: text/plain; charset=utf-8\r\n" +
+		"\r\n" +
+		"Hi Bob!\r\n"
+	m, err := Parse([]byte(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Subject != "Hello" || m.From != "Robin R" || m.FromAddr != "robin@example.com" || m.To != "bob@example.com" {
+		t.Errorf("envelope = %q %q %q %q", m.Subject, m.From, m.FromAddr, m.To)
+	}
+	if want := time.Date(2026, 10, 5, 10, 0, 0, 0, time.UTC); !m.Date.Equal(want) {
+		t.Errorf("Date = %v", m.Date)
+	}
+	if m.MessageID != "abc@example.com" {
+		t.Errorf("MessageID = %q", m.MessageID)
+	}
+	if m.ListID != `"Money Stuff" <money.example.com>` || m.ListPost != "<https://example.com/p/9>" {
+		t.Errorf("list = %q %q", m.ListID, m.ListPost)
+	}
+	if m.Text != "Hi Bob!\r\n" || m.Body != m.Text || string(m.Raw) != raw {
+		t.Errorf("body = %q %q", m.Text, m.Body)
+	}
+	if m.UID != 0 || !m.Arrived.IsZero() {
+		t.Errorf("UID/Arrived = %d %v", m.UID, m.Arrived)
+	}
+}

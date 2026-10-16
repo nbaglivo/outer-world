@@ -187,6 +187,47 @@ func message(b *imapclient.FetchMessageBuffer, section *imap.FetchItemBodySectio
 	return msg, nil
 }
 
+// Parse builds a Message from a raw RFC 822 message. Arrived and UID are left
+// zero for the caller.
+func Parse(raw []byte) (*Message, error) {
+	r, err := mail.CreateReader(bytes.NewReader(raw))
+	if err != nil {
+		return nil, fmt.Errorf("parse message: %w", err)
+	}
+	h := r.Header
+	msg := &Message{Raw: raw}
+	msg.Subject, _ = h.Subject()
+	msg.Date, _ = h.Date()
+	if from, _ := h.AddressList("From"); len(from) > 0 {
+		msg.From = joinNames(from)
+		msg.FromAddr = from[0].Address
+	}
+	if to, _ := h.AddressList("To"); len(to) > 0 {
+		msg.To = joinNames(to)
+	}
+	msg.MessageID, _ = h.MessageID()
+	msg.ListID, msg.ListPost = listHeaders(raw)
+	msg.Text, msg.HTML, err = extractParts(raw)
+	if err != nil {
+		return nil, err
+	}
+	msg.Body = bodyText(msg.Text, msg.HTML)
+	return msg, nil
+}
+
+// joinNames is formatAddrs for parsed header addresses.
+func joinNames(addrs []*mail.Address) string {
+	parts := make([]string, 0, len(addrs))
+	for _, a := range addrs {
+		if a.Name != "" {
+			parts = append(parts, a.Name)
+		} else {
+			parts = append(parts, a.Address)
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
 // listHeaders returns the raw List-Id and List-Post header values of a raw
 // RFC 822 message, or "" for each that is missing or unparsable.
 func listHeaders(raw []byte) (listID, listPost string) {
