@@ -130,7 +130,9 @@ func (s *Session) Window(from, to time.Time) ([]*Message, error) {
 	if _, err := s.client.Select("INBOX", &imap.SelectOptions{ReadOnly: true}).Wait(); err != nil {
 		return nil, fmt.Errorf("select INBOX: %w", err)
 	}
-	found, err := s.client.UIDSearch(&imap.SearchCriteria{Since: from}, nil).Wait()
+	// SINCE is a date in the server's zone, which may be a day behind from's;
+	// search a day earlier and trim on the internal date below.
+	found, err := s.client.UIDSearch(&imap.SearchCriteria{Since: from.AddDate(0, 0, -1)}, nil).Wait()
 	if err != nil {
 		return nil, fmt.Errorf("search: %w", err)
 	}

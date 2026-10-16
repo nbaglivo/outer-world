@@ -322,3 +322,23 @@ func TestParse(t *testing.T) {
 		t.Errorf("UID/Arrived = %d %v", m.UID, m.Arrived)
 	}
 }
+
+// SEARCH SINCE compares dates in the server's zone, which can be a day behind
+// a from given in a far-east zone.
+func TestWindowFromAheadOfServerDate(t *testing.T) {
+	s := newEmptySession(t)
+	east, err := time.LoadLocation("Etc/GMT-12")
+	if err != nil {
+		t.Fatal(err)
+	}
+	from := time.Date(2026, 10, 16, 6, 30, 0, 0, east)
+	appendAt(t, s, listMsg("early"), from.Add(time.Minute).UTC())
+
+	got, err := s.Window(from, from.Add(24*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Subject != "early" {
+		t.Fatalf("got %d messages, want early: %+v", len(got), got)
+	}
+}
