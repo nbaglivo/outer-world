@@ -70,3 +70,34 @@ func TestCleanLinksOpenSafely(t *testing.T) {
 		t.Errorf("HTML = %s", out)
 	}
 }
+
+func TestCleanDropsPixelsSizedByStyleOrDecimals(t *testing.T) {
+	out := string(Clean(`<p>x</p>` +
+		`<img src="https://t.ex.com/a.gif" style="width:1px;height:1px">` +
+		`<img src="https://t.ex.com/b.gif" style="WIDTH: 0 ; border:0">` +
+		`<img src="https://t.ex.com/c.gif" width="1.0" height="1.0">` +
+		`<img src="https://t.ex.com/d.gif" height="2.5px">` +
+		`<img src="https://ex.com/big.jpg" style="width:600px" width="600.0">`).HTML)
+	for _, bad := range []string{"a.gif", "b.gif", "c.gif"} {
+		if strings.Contains(out, bad) {
+			t.Errorf("HTML keeps pixel %s: %s", bad, out)
+		}
+	}
+	for _, want := range []string{"d.gif", "big.jpg"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("HTML lacks %s: %s", want, out)
+		}
+	}
+}
+
+func TestCleanDropsEveryViewLink(t *testing.T) {
+	c := Clean(`<p><a href="https://ex.com/top">View in browser</a></p><p>Body</p>` +
+		`<p><a href="https://ex.com/bottom">View online</a></p>`)
+	if c.ViewLink != "https://ex.com/top" {
+		t.Errorf("ViewLink = %q", c.ViewLink)
+	}
+	out := string(c.HTML)
+	if strings.Contains(out, "View") || strings.Contains(out, "ex.com/bottom") || !strings.Contains(out, "Body") {
+		t.Errorf("HTML = %s", out)
+	}
+}

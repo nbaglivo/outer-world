@@ -45,8 +45,10 @@ func Clean(src string) Cleaned {
 			case n.DataAtom == atom.Img && !showable(n):
 				drop = append(drop, n)
 				return
-			case n.DataAtom == atom.A && c.ViewLink == "" && isViewLink(n):
-				c.ViewLink = strings.TrimSpace(attr(n, "href"))
+			case n.DataAtom == atom.A && isViewLink(n):
+				if c.ViewLink == "" {
+					c.ViewLink = strings.TrimSpace(attr(n, "href"))
+				}
 				drop = append(drop, viewLinkNode(n))
 				return
 			}
@@ -143,6 +145,7 @@ func newPolicy() *bluemonday.Policy {
 var (
 	reHidden     = regexp.MustCompile(`(?i)display\s*:\s*none|visibility\s*:\s*hidden|mso-hide\s*:\s*all|(?:max-height|font-size)\s*:\s*0(?:px|pt|em|rem|%)?\s*(?:;|!|$)`)
 	reViewLink   = regexp.MustCompile(`(?i)^(?:view|read)\s+(?:this\s+|the\s+|email\s+|message\s+)*(?:in\s+(?:your\s+|a\s+)?browser|online)\W*$`)
+	reStyleSize  = regexp.MustCompile(`(?i)(?:^|[;\s])(?:width|height)\s*:\s*([\d.]+(?:px)?)\s*(?:;|!|$)`)
 	reSpace      = regexp.MustCompile(`[ \t\r\n\f\x{a0}]+`)
 	reBlankLines = regexp.MustCompile(`\n{3,}`)
 )
@@ -155,9 +158,13 @@ func hidden(n *html.Node) bool {
 // showable reports whether an image is worth keeping: not a tracking pixel
 // and fetchable over http(s).
 func showable(img *html.Node) bool {
-	for _, k := range []string{"width", "height"} {
-		v := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(attr(img, k))), "px")
-		if n, err := strconv.Atoi(v); err == nil && n <= 2 {
+	sizes := []string{attr(img, "width"), attr(img, "height")}
+	for _, m := range reStyleSize.FindAllStringSubmatch(attr(img, "style"), -1) {
+		sizes = append(sizes, m[1])
+	}
+	for _, v := range sizes {
+		v = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(v)), "px")
+		if n, err := strconv.ParseFloat(v, 64); err == nil && n <= 2 {
 			return false
 		}
 	}
