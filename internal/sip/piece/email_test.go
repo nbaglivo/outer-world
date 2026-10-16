@@ -135,3 +135,61 @@ func TestFromEmailEscapesPlainText(t *testing.T) {
 		t.Errorf("HTML = %s", p.HTML)
 	}
 }
+
+func TestFromEmailMultipartDekSkipsChrome(t *testing.T) {
+	raw := "From: News <news@example.com>\r\nSubject: Weekly\r\nMIME-Version: 1.0\r\n" +
+		"Content-Type: multipart/alternative; boundary=XX\r\n\r\n" +
+		"--XX\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n" +
+		"View this email in your browser (https://ex.com/web)\r\n\r\nThe real first sentence. More words.\r\n" +
+		"--XX\r\nContent-Type: text/html; charset=utf-8\r\n\r\n" +
+		`<p><a href="https://ex.com/web">View this email in your browser</a></p><p>The real first sentence. More words.</p>` + "\r\n" +
+		"--XX--\r\n"
+	p := FromEmail(parse(t, raw))
+	if p.Dek != "The real first sentence." {
+		t.Errorf("Dek = %q", p.Dek)
+	}
+	if strings.Contains(p.Text, "browser") || p.Words != 6 {
+		t.Errorf("Text = %q, Words = %d", p.Text, p.Words)
+	}
+}
+
+func TestFromEmailHTMLTextDecodesEntitiesAndSkipsHidden(t *testing.T) {
+	raw := "From: a@example.com\r\nSubject: x\r\nContent-Type: text/html; charset=utf-8\r\n\r\n" +
+		`<div style="display:none">secret preview</div><p><a href="https://ex.com/v">View in browser</a></p>` +
+		`<p>It&#8217;s here &mdash; finally.</p><p>Second para.</p>`
+	p := FromEmail(parse(t, raw))
+	if p.Text != "It’s here — finally.\n\nSecond para." {
+		t.Errorf("Text = %q", p.Text)
+	}
+	if p.Words != 6 {
+		t.Errorf("Words = %d, want 6", p.Words)
+	}
+	if p.Dek != "secret preview" {
+		t.Errorf("Dek = %q", p.Dek)
+	}
+}
+
+func TestFromEmailHTMLOnlyDekIsFirstSentence(t *testing.T) {
+	raw := "From: a@example.com\r\nSubject: x\r\nContent-Type: text/html; charset=utf-8\r\n\r\n" +
+		`<p><a href="https://ex.com/v">View in browser</a></p><p>Hello&nbsp;there&#8217;s more. Rest.</p>`
+	if p := FromEmail(parse(t, raw)); p.Dek != "Hello there’s more." {
+		t.Errorf("Dek = %q", p.Dek)
+	}
+}
+
+func TestFromEmailPreheaderIsTidiedAndCapped(t *testing.T) {
+	pad := strings.Repeat("&nbsp;&#847;&zwnj;&#8203;&#65279;", 40)
+	raw := "From: a@example.com\r\nSubject: x\r\nContent-Type: text/html; charset=utf-8\r\n\r\n" +
+		`<div style="display:none">Rates,   again.` + pad + `</div><p>Body.</p>`
+	if p := FromEmail(parse(t, raw)); p.Dek != "Rates, again." {
+		t.Errorf("Dek = %q", p.Dek)
+	}
+
+	long := strings.Repeat("word ", 60)
+	raw = "From: a@example.com\r\nSubject: x\r\nContent-Type: text/html; charset=utf-8\r\n\r\n" +
+		`<div style="display:none">` + long + `</div><p>Body.</p>`
+	p := FromEmail(parse(t, raw))
+	if n := utf8.RuneCountInString(p.Dek); n > 161 || !strings.HasSuffix(p.Dek, "…") {
+		t.Errorf("Dek = %q (%d runes)", p.Dek, n)
+	}
+}

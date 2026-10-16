@@ -15,7 +15,8 @@ import (
 // Cleaned is an email body reduced to safe, plain markup.
 type Cleaned struct {
 	HTML      template.HTML
-	Preheader string // text of the first hidden element with text, trimmed
+	Text      string // the visible text of HTML: paragraphs split by blank lines
+	Preheader string // text of the first hidden element with text, tidied
 	ViewLink  string // href of a "view in browser"/"view online"/"read online" link, http(s) only
 }
 
@@ -37,7 +38,7 @@ func Clean(src string) Cleaned {
 				return
 			case hidden(n):
 				if c.Preheader == "" {
-					c.Preheader = collapse(textOf(n))
+					c.Preheader = tidy(textOf(n))
 				}
 				drop = append(drop, n)
 				return
@@ -70,7 +71,59 @@ func Clean(src string) Cleaned {
 		}
 	}
 	c.HTML = template.HTML(strings.TrimSpace(policy.Sanitize(buf.String())))
+	c.Text = plainText(string(c.HTML))
 	return c
+}
+
+// plainText is the text of sanitized markup, entities decoded, one
+// paragraph per block element and a line break per <br>.
+func plainText(markup string) string {
+	nodes, err := html.ParseFragment(strings.NewReader(markup), &html.Node{Type: html.ElementNode, Data: "body", DataAtom: atom.Body})
+	if err != nil {
+		return ""
+	}
+	var b strings.Builder
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		switch {
+		case n.Type == html.TextNode:
+			b.WriteString(reSpace.ReplaceAllString(n.Data, " "))
+		case n.DataAtom == atom.Br:
+			b.WriteString("\n")
+		case n.Type == html.ElementNode && block[n.DataAtom]:
+			b.WriteString("\n\n")
+			defer b.WriteString("\n\n")
+		}
+		for ch := n.FirstChild; ch != nil; ch = ch.NextSibling {
+			walk(ch)
+		}
+	}
+	for _, n := range nodes {
+		walk(n)
+	}
+	lines := strings.Split(b.String(), "\n")
+	for i, l := range lines {
+		lines[i] = tidy(l)
+	}
+	return strings.TrimSpace(reBlankLines.ReplaceAllString(strings.Join(lines, "\n"), "\n\n"))
+}
+
+var block = map[atom.Atom]bool{
+	atom.P: true, atom.H1: true, atom.H2: true, atom.H3: true, atom.H4: true, atom.H5: true, atom.H6: true,
+	atom.Ul: true, atom.Ol: true, atom.Li: true, atom.Blockquote: true, atom.Pre: true, atom.Hr: true,
+	atom.Figure: true, atom.Figcaption: true,
+}
+
+// tidy drops the invisible characters newsletters pad previews with and
+// collapses whitespace.
+func tidy(s string) string {
+	return collapse(strings.Map(func(r rune) rune {
+		switch r {
+		case '\u034f', '\u00ad', '\u200b', '\u200c', '\u200d', '\u2060', '\ufeff':
+			return -1
+		}
+		return r
+	}, s))
 }
 
 var policy = newPolicy()
@@ -88,9 +141,10 @@ func newPolicy() *bluemonday.Policy {
 }
 
 var (
-	reHidden   = regexp.MustCompile(`(?i)display\s*:\s*none|visibility\s*:\s*hidden|mso-hide\s*:\s*all|(?:max-height|font-size)\s*:\s*0(?:px|pt|em|rem|%)?\s*(?:;|!|$)`)
-	reViewLink = regexp.MustCompile(`(?i)^(?:view|read)\s+(?:this\s+|the\s+|email\s+|message\s+)*(?:in\s+(?:your\s+|a\s+)?browser|online)\W*$`)
-	reSpace    = regexp.MustCompile(`[ \t\r\n\f\x{a0}]+`)
+	reHidden     = regexp.MustCompile(`(?i)display\s*:\s*none|visibility\s*:\s*hidden|mso-hide\s*:\s*all|(?:max-height|font-size)\s*:\s*0(?:px|pt|em|rem|%)?\s*(?:;|!|$)`)
+	reViewLink   = regexp.MustCompile(`(?i)^(?:view|read)\s+(?:this\s+|the\s+|email\s+|message\s+)*(?:in\s+(?:your\s+|a\s+)?browser|online)\W*$`)
+	reSpace      = regexp.MustCompile(`[ \t\r\n\f\x{a0}]+`)
+	reBlankLines = regexp.MustCompile(`\n{3,}`)
 )
 
 // hidden reports elements mail clients don't show, such as preheaders.

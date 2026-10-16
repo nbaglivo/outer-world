@@ -54,17 +54,13 @@ func FromEmail(m *mailbox.Message) Piece {
 	var cleaned Cleaned
 	if m.HTML != "" {
 		cleaned = Clean(m.HTML)
-		p.HTML = cleaned.HTML
+		p.HTML, p.Text = cleaned.HTML, cleaned.Text
 	} else {
-		p.HTML = paragraphs(m.Text)
-	}
-	p.Text = m.Text
-	if p.Text == "" {
-		p.Text = m.Body
+		p.HTML, p.Text = paragraphs(m.Text), m.Text
 	}
 	p.Words = len(strings.Fields(p.Text))
 
-	p.Dek = cleaned.Preheader
+	p.Dek = clip(cleaned.Preheader)
 	if p.Dek == "" {
 		p.Dek = firstSentence(p.Text)
 	}
@@ -104,7 +100,7 @@ func paragraphs(text string) template.HTML {
 }
 
 // firstSentence is the text up to the first ". ", "! ", "? " or newline,
-// cut at dekRunes on a word boundary with an ellipsis.
+// clipped.
 func firstSentence(text string) string {
 	text = strings.TrimSpace(text)
 	if loc := reSentEnd.FindStringIndex(text); loc != nil {
@@ -114,7 +110,11 @@ func firstSentence(text string) string {
 		}
 		text = text[:end]
 	}
-	text = strings.Join(strings.Fields(text), " ")
+	return clip(tidy(text))
+}
+
+// clip cuts text at dekRunes on a word boundary with an ellipsis.
+func clip(text string) string {
 	r := []rune(text)
 	if len(r) <= dekRunes {
 		return text
