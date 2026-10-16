@@ -71,6 +71,7 @@ func fixture(t *testing.T) (edition.Edition, *time.Location) {
 			},
 			{
 				ID: "walk", Dek: "Walked 40km today. The rice is almost ready.",
+				Text:   "Walked 40km today. The rice is almost ready, and tomorrow the road climbs to the pass before the long valley down to the sea.",
 				Author: "Craig Mod", Source: "Ridgeline", Channel: "email",
 				Published: at(20, 0), Arrived: at(20, 1),
 				HTML:  template.HTML("<p>Walked 40km today.</p>"),
@@ -199,5 +200,16 @@ func TestNoGoogleFonts(t *testing.T) {
 		if strings.Contains(string(body), "fonts.googleapis.com") {
 			t.Errorf("%s references fonts.googleapis.com", path)
 		}
+	}
+}
+
+func TestBriefExcerptPrefersText(t *testing.T) {
+	text := strings.Repeat("long words here ", 30)
+	got := excerpt(piece.Piece{Dek: "A short dek.", Text: text})
+	if !strings.HasPrefix(got, "long words here") || len([]rune(got)) < 200 || len([]rune(got)) > 281 {
+		t.Errorf("excerpt = %q (%d runes)", got, len([]rune(got)))
+	}
+	if got := excerpt(piece.Piece{Dek: "Only a dek."}); got != "Only a dek." {
+		t.Errorf("excerpt = %q", got)
 	}
 }

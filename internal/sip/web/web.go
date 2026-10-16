@@ -101,11 +101,12 @@ func render(w http.ResponseWriter, t *template.Template, data any) {
 	buf.WriteTo(w)
 }
 
-// excerpt is the start of a brief's dek or text, cut on a word boundary.
+// excerpt is the start of a brief's text, or its dek when it has none, cut
+// on a word boundary.
 func excerpt(p piece.Piece) string {
-	s := p.Dek
-	if s == "" {
-		s = p.Text
+	s := p.Text
+	if strings.TrimSpace(s) == "" {
+		s = p.Dek
 	}
 	s = strings.Join(strings.Fields(s), " ")
 	if len([]rune(s)) <= briefChars {
