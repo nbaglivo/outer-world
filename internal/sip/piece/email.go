@@ -3,9 +3,12 @@ package piece
 import (
 	"html"
 	"html/template"
+	"mime"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/emersion/go-message/charset"
 
 	"nmail/internal/mailbox"
 )
@@ -13,9 +16,12 @@ import (
 const dekRunes = 160
 
 var (
-	reTags    = regexp.MustCompile(`^(\s*\[[^\]]*\]\s*)+`)
-	reParas   = regexp.MustCompile(`\n\s*\n`)
-	reSentEnd = regexp.MustCompile(`[.!?] |\n`)
+	reTags     = regexp.MustCompile(`^(\s*\[[^\]]*\]\s*)+`)
+	reParas    = regexp.MustCompile(`\n\s*\n`)
+	reSentEnd  = regexp.MustCompile(`[.!?] |\n`)
+	reListPost = regexp.MustCompile(`<(https?://[^>]+)>`)
+
+	wordDecoder = &mime.WordDecoder{CharsetReader: charset.Reader}
 )
 
 // FromEmail turns a newsletter into a Piece.
@@ -64,21 +70,26 @@ func FromEmail(m *mailbox.Message) Piece {
 	if p.Dek == "" {
 		p.Dek = firstSentence(p.Text)
 	}
-	if post := strings.TrimSpace(m.ListPost); strings.HasPrefix(post, "<http") && strings.HasSuffix(post, ">") {
-		p.Original = strings.Trim(post, "<>")
+	if post := reListPost.FindStringSubmatch(m.ListPost); post != nil {
+		p.Original = post[1]
 	} else {
 		p.Original = cleaned.ViewLink
 	}
 	return p
 }
 
-// listName is the description part of a List-Id value, unquoted.
+// listName is the description part of a List-Id value, unquoted and with
+// RFC 2047 encoded words decoded.
 func listName(listID string) string {
 	i := strings.Index(listID, "<")
 	if i < 0 {
 		return ""
 	}
-	return strings.Trim(strings.TrimSpace(listID[:i]), `"`)
+	name := strings.Trim(strings.TrimSpace(listID[:i]), `"`)
+	if decoded, err := wordDecoder.DecodeHeader(name); err == nil {
+		name = decoded
+	}
+	return name
 }
 
 func domain(addr string) string {

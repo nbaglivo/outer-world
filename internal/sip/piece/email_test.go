@@ -193,3 +193,24 @@ func TestFromEmailPreheaderIsTidiedAndCapped(t *testing.T) {
 		t.Errorf("Dek = %q (%d runes)", p.Dek, n)
 	}
 }
+
+func TestFromEmailListHeaders(t *testing.T) {
+	raw := "From: a@example.com\r\nSubject: x\r\n" +
+		"List-Id: =?utf-8?Q?Caf=C3=A9_Weekly?= <cafe.example.com>\r\n" +
+		"List-Post: <mailto:a@ex.com>, <https://ex.com/p/1>\r\n" +
+		"Content-Type: text/plain\r\n\r\nHi.\r\n"
+	p := FromEmail(parse(t, raw))
+	if p.Source != "Café Weekly" {
+		t.Errorf("Source = %q", p.Source)
+	}
+	if p.Original != "https://ex.com/p/1" {
+		t.Errorf("Original = %q", p.Original)
+	}
+
+	raw = "From: a@example.com\r\nSubject: x\r\n" +
+		"List-Post: <https://ex.com/p/2>, <mailto:a@ex.com>\r\n" +
+		"Content-Type: text/plain\r\n\r\nHi.\r\n"
+	if p := FromEmail(parse(t, raw)); p.Original != "https://ex.com/p/2" {
+		t.Errorf("Original = %q", p.Original)
+	}
+}
