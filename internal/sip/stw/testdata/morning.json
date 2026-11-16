@@ -1,0 +1,83 @@
+{
+  "items": [
+    {
+      "id": "https://mastodon.social/users/alice/statuses/113284750912345678",
+      "url": "https://mastodon.social/@alice/113284750912345678",
+      "type": "Note",
+      "visibility": "public",
+      "published": "2026-10-16T06:12:03.000Z",
+      "updated": null,
+      "title": null,
+      "summary": null,
+      "sensitive": false,
+      "content_html": "<p>First pour-over of the season. The <a href=\"https://mastodon.social/tags/coffee\" class=\"mention hashtag\" rel=\"nofollow noopener noreferrer\">#<span>coffee</span></a> tastes like October.</p>",
+      "content_text": "First pour-over of the season. The #coffee tastes like October.",
+      "language": "en",
+      "author": {
+        "id": "https://mastodon.social/users/alice",
+        "handle": "@alice@mastodon.social",
+        "name": "Alice",
+        "avatar_url": "https://files.mastodon.social/accounts/avatars/000/000/001/original/alice.png",
+        "profile_url": "https://mastodon.social/@alice"
+      },
+      "boost": null,
+      "in_reply_to": null,
+      "attachments": [
+        {
+          "url": "https://files.mastodon.social/media_attachments/files/113/284/750/original/kettle.jpg",
+          "media_type": "image/jpeg",
+          "kind": "image",
+          "description": "A gooseneck kettle pouring water over a paper filter.",
+          "width": 1600,
+          "height": 1200
+        }
+      ],
+      "hashtags": [
+        {
+          "name": "coffee",
+          "url": "https://mastodon.social/tags/coffee"
+        }
+      ],
+      "mentions": [],
+      "received_at": "2026-10-16T06:12:05.412Z"
+    },
+    {
+      "id": "https://write.as/bob/autumn-reading",
+      "url": "https://write.as/bob/autumn-reading",
+      "type": "Article",
+      "visibility": "public",
+      "published": "2026-10-15T21:00:00.000Z",
+      "updated": "2026-10-15T21:40:00.000Z",
+      "title": "Autumn reading",
+      "summary": "Five books for long evenings.",
+      "sensitive": false,
+      "content_html": "<h2>One</h2><p>A slow book about rivers.</p>",
+      "content_text": "One\n\nA slow book about rivers.",
+      "language": null,
+      "author": {
+        "id": "https://write.as/api/collections/bob",
+        "handle": "@bob@write.as",
+        "name": "Bob's notebook",
+        "avatar_url": null,
+        "profile_url": "https://write.as/bob/"
+      },
+      "boost": {
+        "by": {
+          "id": "https://hachyderm.io/users/carol",
+          "handle": "@carol@hachyderm.io",
+          "name": "Carol",
+          "avatar_url": "https://media.hachyderm.io/accounts/avatars/carol.png",
+          "profile_url": "https://hachyderm.io/@carol"
+        },
+        "boosted_at": "2026-10-16T05:58:41.000Z",
+        "activity_id": "https://hachyderm.io/users/carol/statuses/113284700000000001/activity"
+      },
+      "in_reply_to": null,
+      "attachments": [],
+      "hashtags": [],
+      "mentions": [],
+      "received_at": "2026-10-16T05:58:42.007Z"
+    }
+  ],
+  "next_cursor": "eyJ2IjoxLCJvIjoiZGVzYyIsInMiOjQxLCJhIjpudWxsLCJiIjpudWxsfQ"
+}
