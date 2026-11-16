@@ -17,6 +17,7 @@ func FromItem(it stw.Item) Piece {
 		Published: it.Published,
 		Arrived:   it.ReceivedAt,
 		Author:    it.Author.Name,
+		Sensitive: it.Sensitive,
 		Source:    itemSource(it.Author),
 	}
 	if p.Published.IsZero() {
@@ -43,6 +44,17 @@ func FromItem(it stw.Item) Piece {
 	p.Dek = clip(it.Summary)
 	if p.Dek == "" {
 		p.Dek = firstSentence(p.Text)
+	}
+	if p.Dek == "" {
+		for _, a := range it.Attachments {
+			if d := strings.TrimSpace(a.Description); d != "" {
+				p.Dek = clip(d)
+				break
+			}
+		}
+	}
+	if p.Dek == "" {
+		p.Dek = "A post by " + p.Author
 	}
 	if isWebURL(it.URL) {
 		p.Original = it.URL

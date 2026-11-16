@@ -232,6 +232,31 @@ func TestBriefExcerptPrefersText(t *testing.T) {
 	}
 }
 
+func TestBriefWithoutTextShowsHeadline(t *testing.T) {
+	if got := excerpt(piece.Piece{Title: "A title"}); got != "A title" {
+		t.Errorf("excerpt = %q", got)
+	}
+	if got := excerpt(piece.Piece{}); got != "Untitled" {
+		t.Errorf("excerpt = %q", got)
+	}
+}
+
+func TestFrontHidesSensitiveText(t *testing.T) {
+	ed, loc := fixture(t)
+	ed.Briefs[0] = piece.Piece{
+		ID: "cw", Dek: "Spoilers for the last chapter", Sensitive: true,
+		Text:      "The river was the narrator all along.",
+		Published: ed.Briefs[0].Published, Arrived: ed.Briefs[0].Arrived,
+	}
+	body := get(t, Handler(ed, loc), "/").Body.String()
+	if !strings.Contains(body, "CW: Spoilers for the last chapter") {
+		t.Errorf("front lacks the content warning")
+	}
+	if strings.Contains(body, "narrator all along") {
+		t.Errorf("front shows the sensitive text")
+	}
+}
+
 func TestPagesAreLockedDown(t *testing.T) {
 	ed, loc := fixture(t)
 	h := Handler(ed, loc)

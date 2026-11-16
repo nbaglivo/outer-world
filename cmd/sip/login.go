@@ -12,9 +12,7 @@ import (
 )
 
 // login asks for the password and saves c as the one saved login.
-func login(store interface {
-	Save([]mailbox.Credentials) error
-}, c mailbox.Credentials, readPassword func() (string, error)) error {
+func login(store interface{ Save([]mailbox.Credentials) error }, c mailbox.Credentials, readPassword func() (string, error)) error {
 	pw, err := readPassword()
 	if err != nil {
 		return err

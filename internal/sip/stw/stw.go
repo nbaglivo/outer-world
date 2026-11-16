@@ -66,7 +66,7 @@ type listResponse struct {
 	NextCursor *string `json:"next_cursor"`
 }
 
-// Items fetches every item published in [since, until), oldest first. Any
+// Items fetches every item whose received_at is in (since, until], oldest first. Any
 // error discards the pages already read.
 func (c Client) Items(ctx context.Context, since, until time.Time) ([]Item, error) {
 	timeout := c.Timeout

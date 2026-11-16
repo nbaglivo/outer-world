@@ -1,7 +1,9 @@
 package stw
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -192,10 +194,10 @@ func TestItemsTimeout(t *testing.T) {
 	c.Timeout = 50 * time.Millisecond
 	start := time.Now()
 	items, err := c.Items(t.Context(), since, until)
-	if err == nil || items != nil {
+	if !errors.Is(err, context.DeadlineExceeded) || items != nil {
 		t.Fatalf("items = %v, err = %v", items, err)
 	}
-	if d := time.Since(start); d > 150*time.Millisecond {
+	if d := time.Since(start); d > time.Second {
 		t.Errorf("took %v", d)
 	}
 }

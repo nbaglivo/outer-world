@@ -108,12 +108,18 @@ func render(w http.ResponseWriter, t *template.Template, data any) {
 	buf.WriteTo(w)
 }
 
-// excerpt is the start of a brief's text, or its dek when it has none, cut
-// on a word boundary.
+// excerpt is the start of a brief's text, or its dek or headline when it has
+// none, cut on a word boundary. A content-warned piece shows only its warning.
 func excerpt(p piece.Piece) string {
+	if p.Sensitive {
+		return "CW: " + p.Dek
+	}
 	s := p.Text
 	if strings.TrimSpace(s) == "" {
 		s = p.Dek
+	}
+	if strings.TrimSpace(s) == "" {
+		s = p.Headline()
 	}
 	s = strings.Join(strings.Fields(s), " ")
 	if len([]rune(s)) <= briefChars {

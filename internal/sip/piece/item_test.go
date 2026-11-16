@@ -73,6 +73,32 @@ func TestFromItemSensitiveDek(t *testing.T) {
 	}
 }
 
+func TestFromItemSetsSensitive(t *testing.T) {
+	if p := FromItem(stw.Item{Sensitive: true, Summary: "cw"}); !p.Sensitive {
+		t.Errorf("Sensitive = false")
+	}
+	if p := FromItem(stw.Item{ContentText: "plain"}); p.Sensitive {
+		t.Errorf("Sensitive = true")
+	}
+}
+
+func TestFromItemImageOnlyDek(t *testing.T) {
+	it := stw.Item{
+		Author: stw.Account{Name: "Alice"},
+		Attachments: []stw.Attachment{
+			{URL: "https://x.example/a.png", Kind: "image"},
+			{URL: "https://x.example/b.png", Kind: "image", Description: "A red kite over a beach"},
+		},
+	}
+	if p := FromItem(it); p.Dek != "A red kite over a beach" {
+		t.Errorf("Dek = %q", p.Dek)
+	}
+	it.Attachments = it.Attachments[:1]
+	if p := FromItem(it); p.Dek != "A post by Alice" {
+		t.Errorf("Dek = %q", p.Dek)
+	}
+}
+
 func TestFromItemNulls(t *testing.T) {
 	recv := time.Date(2026, 10, 16, 6, 0, 0, 0, time.UTC)
 	p := FromItem(stw.Item{
@@ -128,7 +154,7 @@ func TestFromItemAttachmentsAreSafe(t *testing.T) {
 
 func TestFromItemStripsScript(t *testing.T) {
 	p := FromItem(stw.Item{ContentHTML: "<p>hi</p><script>x()</script>"})
-	if strings.Contains(string(p.HTML), "script") {
+	if strings.Contains(string(p.HTML), "script") || !strings.Contains(string(p.HTML), "hi") {
 		t.Errorf("HTML = %s", p.HTML)
 	}
 }
