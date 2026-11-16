@@ -177,6 +177,24 @@ func TestNextLink(t *testing.T) {
 	}
 }
 
+func TestPieceShowsBoost(t *testing.T) {
+	ed, loc := fixture(t)
+	lead := *ed.Lead
+	lead.Author = "Bob's notebook"
+	lead.BoostedBy = "Carol"
+	lead.Channel = "fediverse"
+	ed.Lead = &lead
+	body := get(t, Handler(ed, loc), "/p/1").Body.String()
+	want := `<span>By Bob&#39;s notebook</span><span>boosted by Carol</span>`
+	if !strings.Contains(body, want) {
+		t.Errorf("/p/1 lacks %q", want)
+	}
+	plain, loc := fixture(t)
+	if body := get(t, Handler(plain, loc), "/p/2").Body.String(); strings.Contains(body, "boosted by") {
+		t.Errorf("unboosted piece shows a boost")
+	}
+}
+
 func TestAssets(t *testing.T) {
 	ed, loc := fixture(t)
 	h := Handler(ed, loc)
