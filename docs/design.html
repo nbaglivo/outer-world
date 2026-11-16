@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One sip at a time design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,300;6..72,400&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+/* the blog's look: warm paper, one quiet column of prose, diagrams allowed to run wider */
+:root {
+  --bg: #faf8f4; --paper: #fffdf9; --fg: #38352f; --ink: #201e1a; --muted: #6f6a60; --faint: #8a857b;
+  --line: #d9d1c2; --rule: #ebe6dc; --tint: #f2ede2; --accent: #8b5a2b;
+  --serif: Newsreader, "Iowan Old Style", Georgia, serif;
+  --sans: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1c1a17; --paper: #23201c; --fg: #e3ddd1; --ink: #f3eee4; --muted: #aaa294; --faint: #8f877a;
+    --line: #4a443b; --rule: #342f29; --tint: #2a2621; --accent: #d39a62; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1c1a17; --paper: #23201c; --fg: #e3ddd1; --ink: #f3eee4; --muted: #aaa294; --faint: #8f877a;
+  --line: #4a443b; --rule: #342f29; --tint: #2a2621; --accent: #d39a62; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 16px; line-height: 1.7;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 4rem 5rem; }
+main { max-width: 1040px; margin: 0 auto; display: grid; gap: 3.5rem; }
+header, .prose { max-width: 42rem; width: 100%; margin: 0 auto; }
+.mark { width: 56px; height: 56px; color: var(--ink); display: block; margin-bottom: 1rem; }
+h1 { margin: 0; font-family: var(--serif); font-weight: 300; font-size: 2.25rem; letter-spacing: -0.01em; line-height: 1.2; color: var(--ink); text-wrap: balance; }
+.sub { margin: .875rem 0 0; font-size: .9375rem; color: var(--muted); line-height: 1.6; }
+.meta { margin-top: 1.5rem; font-family: var(--mono); font-size: .78rem; color: var(--faint); }
+h2 { font-family: var(--serif); font-size: 1.6rem; font-weight: 400; margin: 0 0 .5rem; color: var(--ink); text-wrap: balance; }
+h3 { font-size: 1rem; font-weight: 500; margin: 0; color: var(--fg); }
+p { margin: 0; color: var(--muted); }
+code { font-family: var(--mono); font-size: .86em; color: var(--fg); }
+section { display: grid; gap: 2.25rem; padding-top: 2.5rem; border-top: 1px solid var(--rule); }
+figure { margin: 0; display: grid; gap: 1rem; min-width: 0; }
+figure > h3, figcaption, .legend { max-width: 42rem; width: 100%; margin: 0 auto; }
+figcaption { color: var(--muted); font-size: .9375rem; line-height: 1.65; }
+.scroll { overflow-x: auto; background: var(--paper); border: 1px solid var(--rule); border-radius: 5px; padding: 24px 20px; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px 28px; font-family: var(--mono); font-size: .78rem; color: var(--faint); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.legend i { display: inline-block; width: 28px; border-top: 1.5px solid var(--fg); }
+.legend i.later { border-top: 1.5px dashed var(--accent); }
+.legend i.tint { height: 12px; border: 1px solid var(--line); background: var(--tint); }
+
+.dg { display: block; width: 100%; min-width: 760px; height: auto; color: var(--fg); font-family: var(--sans); }
+.dg .box { fill: var(--paper); stroke: var(--line); stroke-width: 1.2; }
+.dg .box.later { stroke: var(--accent); stroke-dasharray: 5 4; }
+.dg .region { fill: none; stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 4; }
+.dg .band { fill: var(--tint); stroke: none; }
+.dg .lbl { fill: var(--ink); font-size: 14px; font-weight: 500; }
+.dg .sub { fill: var(--faint); font-family: var(--mono); font-size: 11px; }
+.dg .note { fill: var(--muted); font-family: var(--mono); font-size: 11px; }
+.dg .cap { fill: var(--faint); font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.dg .edge { fill: none; stroke: currentColor; stroke-width: 1.3; }
+.dg .edge.later { stroke: var(--accent); stroke-dasharray: 5 4; }
+.dg .later-t { fill: var(--accent); }
+.dg .axis { stroke: var(--line); stroke-width: 1.2; }
+.dg .tick { stroke: var(--line); }
+.dg .win { fill: var(--tint); }
+.dg .cut { stroke: var(--ink); stroke-width: 1.3; }
+.dg .dot { fill: var(--ink); }
+.dg .ghost { fill: var(--paper); stroke: var(--faint); stroke-width: 1.2; }
+.dg .life { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 4; }
+.dg .ah { fill: currentColor; }
+.dg .ah.later { fill: var(--accent); }
+@media (max-width: 600px) { h1 { font-size: 1.85rem; } }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <svg class="mark" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g transform="translate(-4 0)"><path d="M18 56c0-5-3-8-4-13-2-8-1-17 5-24 5-6 14-9 21-6 4 2 5 6 5 10l3 6c.5 1 0 1.6-1 1.6h-2"/><path d="M43 39c0 2-1 3-3 3.5-2 .5-3 2-3 4v9"/><g transform="rotate(-28 45 31)"><path d="M45 31h13v6.5c0 4-3 6.5-6.5 6.5S45 41.5 45 37.5z"/><path d="M58 33c2.6 0 3.8 1.3 3.8 2.8S60.6 38.6 58 38.6"/></g><path d="M54 19c-1.2-2.2 1.2-3.3 0-5.5"/><path d="M37 24.5c1 1 2.4 1 3.4 0"/></g></svg>
+  <h1>One sip at a time</h1>
+  <p class="sub">A daily paper built at 06:30 from the newsletters in subs@nbaglivo.dev and, later, posts from the accounts the blog follows through warmhole. It lives in the nmail repository and shares its mail code.</p>
+  <p class="meta">Design · 16 October 2026 · spec: docs/superpowers/specs/2026-10-16-one-sip-at-a-time-design.md</p>
+</header>
+
+<div class="legend">
+  <span><i></i>built in milestones 1–4</span>
+  <span><i class="later"></i>fediverse, milestone 5 (warmhole reader API)</span>
+  <span><i class="tint"></i>shared with nmail</span>
+</div>
+
+<section>
+  <div class="prose">
+    <h2>Architecture</h2>
+    <p>Everything runs on the Mac. sip only reads: IMAP is opened read-only and fetched with peek, so building an edition never marks mail as seen. warmhole is the one server, and only the fediverse half needs it.</p>
+  </div>
+  <figure>
+    <div class="scroll">
+      <svg class="dg" viewBox="0 0 940 400" role="img" aria-label="sip on the Mac reads mail over IMAP and, later, fediverse items from warmhole; it serves the edition to the browser and hands HTML to WeasyPrint for the PDF; passwords and tokens come from the keychain.">
+        <defs>
+          <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+          <marker id="a1l" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah later" d="M0 0L10 5L0 10z"/></marker>
+        </defs>
+        <rect class="region" x="12" y="16" width="476" height="368" rx="8"/>
+        <text class="cap" x="28" y="38">Your Mac</text>
+        <text class="cap" x="600" y="38">Internet</text>
+
+        <rect class="box" x="30" y="56" width="170" height="56" rx="5"/>
+        <text class="lbl" x="46" y="80">Browser</text><text class="sub" x="46" y="98">localhost:&lt;port&gt;</text>
+
+        <rect class="box" x="30" y="166" width="170" height="64" rx="5"/>
+        <text class="lbl" x="46" y="192">sip</text><text class="sub" x="46" y="210">cmd/sip · 06:30 cutoff</text>
+
+        <rect class="box" x="30" y="300" width="170" height="56" rx="5"/>
+        <text class="lbl" x="46" y="324">Keychain</text><text class="sub" x="46" y="342">service "sip"</text>
+
+        <rect class="box" x="290" y="300" width="180" height="56" rx="5"/>
+        <text class="lbl" x="306" y="324">WeasyPrint</text><text class="sub" x="306" y="342">→ YYYY-MM-DD.pdf</text>
+
+        <rect class="box" x="600" y="56" width="320" height="56" rx="5"/>
+        <text class="lbl" x="616" y="80">Mail server (IMAP)</text><text class="sub" x="616" y="98">subs@nbaglivo.dev · INBOX</text>
+
+        <rect class="box later" x="600" y="196" width="320" height="56" rx="5"/>
+        <text class="lbl" x="616" y="220">warmhole</text><text class="sub" x="616" y="238">ap.nbaglivo.dev · /reader/v1</text>
+
+        <rect class="box" x="600" y="316" width="320" height="56" rx="5"/>
+        <text class="lbl" x="616" y="340">Followed accounts' servers</text><text class="sub" x="616" y="358">Mastodon and friends</text>
+
+        <path class="edge" d="M115 166V116" marker-end="url(#a1)"/>
+        <text class="note" x="124" y="146">serves pages</text>
+        <path class="edge" d="M115 230V296" marker-end="url(#a1)"/>
+        <text class="note" x="124" y="268">password, token</text>
+        <path class="edge" d="M200 218H380V296" marker-end="url(#a1)"/>
+        <text class="note" x="212" y="236">HTML + print CSS</text>
+        <path class="edge" d="M200 180H540V84H596" marker-end="url(#a1)"/>
+        <text class="note" x="212" y="172">SEARCH SINCE · FETCH peek</text>
+        <path class="edge later" d="M200 200H560V224H596" marker-end="url(#a1l)"/>
+        <text class="note later-t" x="388" y="194">GET items</text>
+        <path class="edge later" d="M730 256V312" marker-end="url(#a1l)"/>
+        <text class="note later-t" x="664" y="288">Follow</text>
+        <path class="edge later" d="M790 312V256" marker-end="url(#a1l)"/>
+        <text class="note later-t" x="800" y="288">Accept · Create</text>
+      </svg>
+    </div>
+    <figcaption>sip talks to two things outside the Mac. The mail server is there from day one. warmhole is dashed: it receives posts from followed accounts and sip reads them through the reader API contract (<code>warmhole/docs/reader-api.openapi.json</code>).</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="prose">
+    <h2>Components in the repository</h2>
+    <p>One Go module, two entrypoints. nmail's packages stay where they are; the shaded band is what both apps use. sip's own packages live under <code>internal/sip/</code>. Arrows point from a package to what it imports.</p>
+  </div>
+  <figure>
+    <div class="scroll">
+      <svg class="dg" viewBox="0 0 940 480" role="img" aria-label="Package graph: cmd/nmail uses ui; cmd/sip uses sip/web and sip/tui, which use sip/edition, which uses sip/piece, which uses mailbox and sip/warmhole. render, mailbox and account are shared.">
+        <defs>
+          <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+          <marker id="a2l" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah later" d="M0 0L10 5L0 10z"/></marker>
+        </defs>
+        <text class="cap" x="60" y="20">nmail</text>
+        <text class="cap" x="520" y="20">sip</text>
+        <rect class="band" x="16" y="376" width="908" height="88" rx="6"/>
+        <text class="cap" x="30" y="456">shared</text>
+
+        <rect class="box" x="60" y="30" width="170" height="48" rx="5"/>
+        <text class="lbl" x="74" y="52">cmd/nmail</text><text class="sub" x="74" y="68">moved from main.go</text>
+        <rect class="box" x="520" y="30" width="170" height="48" rx="5"/>
+        <text class="lbl" x="534" y="52">cmd/sip</text><text class="sub" x="534" y="68">sip · pdf · login</text>
+
+        <rect class="box" x="60" y="120" width="170" height="48" rx="5"/>
+        <text class="lbl" x="74" y="142">ui</text><text class="sub" x="74" y="158">inbox, reader, login</text>
+        <rect class="box" x="520" y="120" width="170" height="48" rx="5"/>
+        <text class="lbl" x="534" y="142">sip/web</text><text class="sub" x="534" y="158">templates, server, PDF</text>
+        <rect class="box" x="740" y="120" width="150" height="48" rx="5"/>
+        <text class="lbl" x="754" y="142">sip/tui</text><text class="sub" x="754" y="158">terminal edition</text>
+
+        <rect class="box" x="520" y="210" width="170" height="48" rx="5"/>
+        <text class="lbl" x="534" y="232">sip/edition</text><text class="sub" x="534" y="248">Cutoff · Compose</text>
+
+        <rect class="box" x="520" y="300" width="170" height="48" rx="5"/>
+        <text class="lbl" x="534" y="322">sip/piece</text><text class="sub" x="534" y="338">email/item → Piece</text>
+        <rect class="box later" x="740" y="300" width="150" height="48" rx="5"/>
+        <text class="lbl" x="754" y="322">sip/warmhole</text><text class="sub" x="754" y="338">reader API client</text>
+
+        <rect class="box" x="60" y="390" width="170" height="48" rx="5"/>
+        <text class="lbl" x="74" y="412">account</text><text class="sub" x="74" y="428">keychain, per service</text>
+        <rect class="box" x="290" y="390" width="170" height="48" rx="5"/>
+        <text class="lbl" x="304" y="412">render</text><text class="sub" x="304" y="428">email → terminal text</text>
+        <rect class="box" x="520" y="390" width="170" height="48" rx="5"/>
+        <text class="lbl" x="534" y="412">mailbox</text><text class="sub" x="534" y="428">IMAP, + Window()</text>
+
+        <path class="edge" d="M145 78V116" marker-end="url(#a2)"/>
+        <path class="edge" d="M605 78V116" marker-end="url(#a2)"/>
+        <path class="edge" d="M670 78L790 116" marker-end="url(#a2)"/>
+        <path class="edge" d="M605 168V206" marker-end="url(#a2)"/>
+        <path class="edge" d="M770 168L690 214" marker-end="url(#a2)"/>
+        <path class="edge" d="M605 258V296" marker-end="url(#a2)"/>
+        <path class="edge" d="M605 348V386" marker-end="url(#a2)"/>
+        <path class="edge later" d="M690 324H736" marker-end="url(#a2l)"/>
+        <path class="edge" d="M145 168V386" marker-end="url(#a2)"/>
+        <path class="edge" d="M200 168L345 386" marker-end="url(#a2)"/>
+        <path class="edge" d="M228 160L555 386" marker-end="url(#a2)"/>
+        <path class="edge" d="M880 168V364H400V386" marker-end="url(#a2)"/>
+        <path class="edge" d="M460 414H516" marker-end="url(#a2)"/>
+      </svg>
+    </div>
+    <figcaption>nmail keeps working unchanged. The only edits to shared code are a <code>Window(from, to)</code> query on <code>mailbox</code>, a few extra headers on <code>Message</code> (Message-ID, List-Id, List-Post) and a service name on <code>account.Keyring</code> so each app has its own keychain entry. Both entrypoints build their own <code>account.Keyring</code> (that edge is left out of the drawing). The terminal edition reuses <code>render</code>, so nmail's per-sender rules apply in sip too.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="prose">
+    <h2>Flows</h2>
+    <p>Three things happen: the edition gets built, the 06:30 cutoff decides which edition you see, and (later) posts reach warmhole and then sip.</p>
+  </div>
+
+  <figure>
+    <h3>Building the edition</h3>
+    <div class="scroll">
+      <svg class="dg" viewBox="0 0 940 230" role="img" aria-label="sip computes the cutoff, reads the window of mail, turns each message into a piece, composes the front page, then serves it or writes the PDF. Later, warmhole items join at the piece step.">
+        <defs>
+          <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+          <marker id="a3l" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah later" d="M0 0L10 5L0 10z"/></marker>
+        </defs>
+        <rect class="box" x="10" y="30" width="135" height="64" rx="5"/>
+        <text class="lbl" x="24" y="56">sip runs</text><text class="sub" x="24" y="74">any time of day</text>
+        <rect class="box" x="166" y="30" width="135" height="64" rx="5"/>
+        <text class="lbl" x="180" y="56">Cutoff(now)</text><text class="sub" x="180" y="74">latest 06:30</text>
+        <rect class="box" x="322" y="30" width="135" height="64" rx="5"/>
+        <text class="lbl" x="336" y="56">Window</text><text class="sub" x="336" y="74">arrived in</text><text class="sub" x="336" y="88">[prev, cutoff)</text>
+        <rect class="box" x="478" y="30" width="135" height="64" rx="5"/>
+        <text class="lbl" x="492" y="56">toPiece</text><text class="sub" x="492" y="74">clean HTML, dek,</text><text class="sub" x="492" y="88">minutes</text>
+        <rect class="box" x="634" y="30" width="135" height="64" rx="5"/>
+        <text class="lbl" x="648" y="56">Compose</text><text class="sub" x="648" y="74">lead · longer</text><text class="sub" x="648" y="88">reads · briefs</text>
+        <rect class="box" x="790" y="30" width="140" height="64" rx="5"/>
+        <text class="lbl" x="804" y="56">Surface</text><text class="sub" x="804" y="74">browser, PDF</text><text class="sub" x="804" y="88">or terminal</text>
+        <path class="edge" d="M145 62H162" marker-end="url(#a3)"/>
+        <path class="edge" d="M301 62H318" marker-end="url(#a3)"/>
+        <path class="edge" d="M457 62H474" marker-end="url(#a3)"/>
+        <path class="edge" d="M613 62H630" marker-end="url(#a3)"/>
+        <path class="edge" d="M769 62H786" marker-end="url(#a3)"/>
+        <rect class="box later" x="322" y="150" width="135" height="56" rx="5"/>
+        <text class="lbl" x="336" y="174">warmhole</text><text class="sub" x="336" y="192">items since/until</text>
+        <path class="edge later" d="M457 178H545V98" marker-end="url(#a3l)"/>
+        <text class="note" x="634" y="118">lead = most words; longer read = 3+ min</text>
+      </svg>
+    </div>
+    <figcaption>Every step after <code>Window</code> is a pure function of the messages and the cutoff, so a run at 07:10 and one at 09:00 give the same paper. Nothing is stored between runs. Curation will later replace the ranking inside <code>Compose</code>.</figcaption>
+  </figure>
+
+  <figure>
+    <h3>Which edition you see</h3>
+    <div class="scroll">
+      <svg class="dg" viewBox="0 0 940 230" role="img" aria-label="Timeline from Thursday to Friday noon. Friday's edition covers Thursday 06:30 to Friday 06:30. Opening at 05:50 still shows Thursday's edition; opening at 07:10 or 09:00 shows Friday's. A newsletter dated Thursday 04:00 that arrived Thursday 22:00 is in Friday's edition.">
+        <rect class="win" x="192" y="70" width="600" height="56"/>
+        <text class="cap" x="400" y="62">Friday's edition</text>
+        <line class="axis" x1="30" y1="126" x2="930" y2="126"/>
+        <line class="tick" x1="30" y1="126" x2="30" y2="134"/><text class="sub" x="30" y="150" text-anchor="middle">Thu 00:00</text>
+        <line class="tick" x1="180" y1="126" x2="180" y2="134"/><text class="sub" x="180" y="150" text-anchor="middle">06:00</text>
+        <line class="tick" x1="330" y1="126" x2="330" y2="134"/><text class="sub" x="330" y="150" text-anchor="middle">12:00</text>
+        <line class="tick" x1="480" y1="126" x2="480" y2="134"/><text class="sub" x="480" y="150" text-anchor="middle">18:00</text>
+        <line class="tick" x1="630" y1="126" x2="630" y2="134"/><text class="sub" x="630" y="150" text-anchor="middle">Fri 00:00</text>
+        <line class="tick" x1="780" y1="126" x2="780" y2="134"/>
+        <line class="tick" x1="930" y1="126" x2="930" y2="134"/><text class="sub" x="922" y="150" text-anchor="middle">12:00</text>
+        <line class="cut" x1="192" y1="40" x2="192" y2="126"/><text class="note" x="198" y="48">Thu 06:30</text>
+        <line class="cut" x1="792" y1="40" x2="792" y2="126"/><text class="note" x="798" y="48">Fri 06:30 cutoff</text>
+
+        <circle class="ghost" cx="130" cy="98" r="4.5"/>
+        <circle class="dot" cx="580" cy="98" r="4.5"/>
+        <path class="edge" d="M136 98H572" stroke-dasharray="2 4"/>
+        <text class="note" x="60" y="88">Date: Thu 04:00</text>
+        <text class="note" x="500" y="88">arrived 22:00</text>
+
+        <path class="edge" d="M776 166V130"/><circle class="dot" cx="776" cy="170" r="3.5"/>
+        <text class="note" x="766" y="196" text-anchor="end">05:50 → Thursday's</text>
+        <path class="edge" d="M809 166V130"/><circle class="dot" cx="809" cy="170" r="3.5"/>
+        <path class="edge" d="M855 166V130"/><circle class="dot" cx="855" cy="170" r="3.5"/>
+        <text class="note" x="926" y="196" text-anchor="end">07:10, 09:00 → Friday's</text>
+      </svg>
+    </div>
+    <figcaption>The edition is fixed per day without saving anything: <code>Cutoff</code> is the most recent 06:30, and the window runs from the previous one. Arrival time decides membership, so the queued newsletter above is in Friday's paper even though its Date header says Thursday 04:00; the byline still shows the sender's date. On daylight-saving days the window is 23 or 25 hours.</figcaption>
+  </figure>
+
+  <figure>
+    <h3>From a followed account to the paper (milestone 5)</h3>
+    <div class="scroll">
+      <svg class="dg" viewBox="0 0 940 400" role="img" aria-label="Sequence: sip asks warmhole to follow an account; warmhole sends a signed Follow; the remote server answers Accept, then delivers Create activities as the account posts; warmhole stores them; at reading time sip asks warmhole for items between the two cutoffs and gets items with a next cursor.">
+        <defs>
+          <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah later" d="M0 0L10 5L0 10z"/></marker>
+        </defs>
+        <rect class="box" x="80" y="16" width="140" height="40" rx="5"/><text class="lbl" x="150" y="41" text-anchor="middle">sip</text>
+        <rect class="box later" x="400" y="16" width="140" height="40" rx="5"/><text class="lbl" x="470" y="41" text-anchor="middle">warmhole</text>
+        <rect class="box" x="720" y="16" width="160" height="40" rx="5"/><text class="lbl" x="800" y="41" text-anchor="middle">remote server</text>
+        <line class="life" x1="150" y1="56" x2="150" y2="390"/>
+        <line class="life" x1="470" y1="56" x2="470" y2="390"/>
+        <line class="life" x1="800" y1="56" x2="800" y2="390"/>
+
+        <path class="edge later" d="M150 90H464" marker-end="url(#a4)"/>
+        <text class="note" x="162" y="82">POST /following {"account": "@b0rk@…"}</text>
+        <path class="edge later" d="M470 126H794" marker-end="url(#a4)"/>
+        <text class="note" x="482" y="118">Follow (HTTP-signed)</text>
+        <path class="edge later" d="M464 158H156" marker-end="url(#a4)"/>
+        <text class="note" x="162" y="150">202 · state: pending</text>
+        <path class="edge later" d="M800 196H476" marker-end="url(#a4)"/>
+        <text class="note" x="790" y="188" text-anchor="end">Accept → state: accepted</text>
+
+        <text class="sub" x="800" y="226" text-anchor="middle">… the account posts …</text>
+        <path class="edge later" d="M800 254H476" marker-end="url(#a4)"/>
+        <text class="note" x="790" y="246" text-anchor="end">Create(Note | Article) to inbox</text>
+        <text class="note" x="482" y="276">sanitized, stored, kept 30 days</text>
+
+        <text class="sub" x="140" y="330" text-anchor="end">06:30 or later</text>
+        <path class="edge later" d="M150 326H464" marker-end="url(#a4)"/>
+        <text class="note" x="162" y="318">GET /items?since=prev&amp;until=cutoff&amp;order=asc</text>
+        <path class="edge later" d="M464 362H156" marker-end="url(#a4)"/>
+        <text class="note" x="162" y="354">200 {items, next_cursor}</text>
+      </svg>
+    </div>
+    <figcaption>Following happens once per account; the posts arrive at warmhole whenever they are written, and sip only reads them at edition time. Posts count only after the follow is accepted. warmhole doesn't implement this yet; sip's client is built against the OpenAPI contract and tested with a fake server serving its examples.</figcaption>
+  </figure>
+</section>
+
+</main>
+</body>
+</html>

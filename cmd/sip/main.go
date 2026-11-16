@@ -11,6 +11,7 @@ import (
 
 	"nmail/internal/account"
 	"nmail/internal/mailbox"
+	"nmail/internal/sip/stw"
 	"nmail/internal/sip/web"
 )
 
@@ -20,27 +21,36 @@ func main() {
 	fs.StringVar(&c.Host, "host", envOr("SIP_HOST", ""), "IMAP server address (env SIP_HOST)")
 	fs.StringVar(&c.Port, "port", envOr("SIP_PORT", "993"), "IMAP TLS port (env SIP_PORT)")
 	fs.StringVar(&c.Username, "user", envOr("SIP_USER", ""), "login username (env SIP_USER)")
+	var stwURL, site string
+	fs.StringVar(&stwURL, "stw", envOr("SIP_STW_URL", "https://ap.nbaglivo.dev"), "stw server address (env SIP_STW_URL)")
+	fs.StringVar(&site, "site", envOr("SIP_STW_SITE", "inner-monologue"), "stw site id (env SIP_STW_SITE)")
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "usage: sip [-host h] [-port p] [-user u] [login]")
+		fmt.Fprintln(os.Stderr, "usage: sip [-host h] [-port p] [-user u] [-stw url] [-site id] [login [fediverse]]")
 		fs.PrintDefaults()
 	}
 	fs.Parse(os.Args[1:])
 
-	if fs.NArg() > 1 || (fs.NArg() == 1 && fs.Arg(0) != "login") {
+	args := fs.Args()
+	fediLogin := len(args) == 2 && args[0] == "login" && args[1] == "fediverse"
+	if len(args) > 2 || (len(args) == 2 && !fediLogin) || (len(args) == 1 && args[0] != "login") {
 		fs.Usage()
 		os.Exit(2)
 	}
-	if c.Host == "" || c.Username == "" {
+	if !fediLogin && (c.Host == "" || c.Username == "") {
 		fs.Usage()
 		os.Exit(2)
 	}
 
 	store := account.Keyring{Service: "sip"}
+	token := account.Secret{Service: "sip", Name: "stw-reader"}
 	var err error
-	if fs.Arg(0) == "login" {
+	switch {
+	case fediLogin:
+		err = loginToken(token, promptToken(site, stwURL))
+	case len(args) == 1:
 		err = login(store, c, promptPassword(c))
-	} else {
-		err = run(store, c)
+	default:
+		err = run(store, c, token, stwURL, site)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -48,7 +58,7 @@ func main() {
 	}
 }
 
-func run(store account.Keyring, c mailbox.Credentials) error {
+func run(store account.Keyring, c mailbox.Credentials, token account.Secret, stwURL, site string) error {
 	saved, err := store.Load()
 	if err != nil {
 		return err
@@ -68,7 +78,18 @@ func run(store account.Keyring, c mailbox.Credentials) error {
 	if err != nil {
 		return err
 	}
-	ed, err := buildEdition(session, time.Now(), time.Local, os.Stderr)
+	var fedi fediverse
+	tok, tokErr := token.Get()
+	switch {
+	case tokErr != nil:
+		fedi = func(since, until time.Time) ([]stw.Item, error) { return nil, tokErr }
+	case tok != "":
+		client := stw.Client{BaseURL: stwURL, Site: site, Token: tok}
+		fedi = func(since, until time.Time) ([]stw.Item, error) {
+			return client.Items(context.Background(), since, until)
+		}
+	}
+	ed, err := buildEdition(session, fedi, time.Now(), time.Local, os.Stderr)
 	session.Close()
 	if err != nil {
 		return err

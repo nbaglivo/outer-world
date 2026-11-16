@@ -177,6 +177,24 @@ func TestNextLink(t *testing.T) {
 	}
 }
 
+func TestPieceShowsBoost(t *testing.T) {
+	ed, loc := fixture(t)
+	lead := *ed.Lead
+	lead.Author = "Bob's notebook"
+	lead.BoostedBy = "Carol"
+	lead.Channel = "fediverse"
+	ed.Lead = &lead
+	body := get(t, Handler(ed, loc), "/p/1").Body.String()
+	want := `<span>By Bob&#39;s notebook</span><span>boosted by Carol</span>`
+	if !strings.Contains(body, want) {
+		t.Errorf("/p/1 lacks %q", want)
+	}
+	plain, loc := fixture(t)
+	if body := get(t, Handler(plain, loc), "/p/2").Body.String(); strings.Contains(body, "boosted by") {
+		t.Errorf("unboosted piece shows a boost")
+	}
+}
+
 func TestAssets(t *testing.T) {
 	ed, loc := fixture(t)
 	h := Handler(ed, loc)
@@ -211,6 +229,31 @@ func TestBriefExcerptPrefersText(t *testing.T) {
 	}
 	if got := excerpt(piece.Piece{Dek: "Only a dek."}); got != "Only a dek." {
 		t.Errorf("excerpt = %q", got)
+	}
+}
+
+func TestBriefWithoutTextShowsHeadline(t *testing.T) {
+	if got := excerpt(piece.Piece{Title: "A title"}); got != "A title" {
+		t.Errorf("excerpt = %q", got)
+	}
+	if got := excerpt(piece.Piece{}); got != "Untitled" {
+		t.Errorf("excerpt = %q", got)
+	}
+}
+
+func TestFrontHidesSensitiveText(t *testing.T) {
+	ed, loc := fixture(t)
+	ed.Briefs[0] = piece.Piece{
+		ID: "cw", Dek: "Spoilers for the last chapter", Sensitive: true,
+		Text:      "The river was the narrator all along.",
+		Published: ed.Briefs[0].Published, Arrived: ed.Briefs[0].Arrived,
+	}
+	body := get(t, Handler(ed, loc), "/").Body.String()
+	if !strings.Contains(body, "CW: Spoilers for the last chapter") {
+		t.Errorf("front lacks the content warning")
+	}
+	if strings.Contains(body, "narrator all along") {
+		t.Errorf("front shows the sensitive text")
 	}
 }
 
