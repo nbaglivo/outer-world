@@ -133,8 +133,8 @@ func TestHomeKeepsPagesWithSomeNewer(t *testing.T) {
 	if len(reqs()) != 2 {
 		t.Errorf("requests = %d, want 2", len(reqs()))
 	}
-	if len(tl.Statuses) != 2 || tl.Complete {
-		t.Errorf("statuses = %d, complete = %v", len(tl.Statuses), tl.Complete)
+	if len(tl.Statuses) != 2 || !tl.Complete || !tl.Oldest.IsZero() {
+		t.Errorf("statuses = %d, complete = %v, oldest = %v", len(tl.Statuses), tl.Complete, tl.Oldest)
 	}
 }
 

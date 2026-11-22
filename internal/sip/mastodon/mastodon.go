@@ -81,6 +81,9 @@ func (c Client) Home(ctx context.Context, since time.Time) (Timeline, error) {
 			var oldest time.Time
 			if len(all) > 0 {
 				oldest = all[len(all)-1].CreatedAt
+				if oldest.Before(since) {
+					return Timeline{Statuses: all, Complete: true}, nil
+				}
 			}
 			return Timeline{Statuses: all, Oldest: oldest}, nil
 		}
