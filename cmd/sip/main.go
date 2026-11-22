@@ -11,6 +11,8 @@ import (
 
 	"nmail/internal/account"
 	"nmail/internal/mailbox"
+	"nmail/internal/sip/mastodon"
+	"nmail/internal/sip/piece"
 	"nmail/internal/sip/web"
 )
 
@@ -20,27 +22,35 @@ func main() {
 	fs.StringVar(&c.Host, "host", envOr("SIP_HOST", ""), "IMAP server address (env SIP_HOST)")
 	fs.StringVar(&c.Port, "port", envOr("SIP_PORT", "993"), "IMAP TLS port (env SIP_PORT)")
 	fs.StringVar(&c.Username, "user", envOr("SIP_USER", ""), "login username (env SIP_USER)")
+	var mastodonURL string
+	fs.StringVar(&mastodonURL, "mastodon", envOr("SIP_MASTODON_URL", "https://mastodon.social"), "Mastodon server URL (env SIP_MASTODON_URL)")
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "usage: sip [-host h] [-port p] [-user u] [login]")
+		fmt.Fprintln(os.Stderr, "usage: sip [-host h] [-port p] [-user u] [-mastodon url] [login [mastodon]]")
 		fs.PrintDefaults()
 	}
 	fs.Parse(os.Args[1:])
 
-	if fs.NArg() > 1 || (fs.NArg() == 1 && fs.Arg(0) != "login") {
+	args := fs.Args()
+	isMastodonLogin := len(args) == 2 && args[0] == "login" && args[1] == "mastodon"
+	validArgs := len(args) == 0 || (len(args) == 1 && args[0] == "login") || isMastodonLogin
+	if !validArgs {
 		fs.Usage()
 		os.Exit(2)
 	}
-	if c.Host == "" || c.Username == "" {
+	if !isMastodonLogin && (c.Host == "" || c.Username == "") {
 		fs.Usage()
 		os.Exit(2)
 	}
 
 	store := account.Keyring{Service: "sip"}
 	var err error
-	if fs.Arg(0) == "login" {
+	switch {
+	case isMastodonLogin:
+		err = loginToken(mastodonSecret, promptToken(mastodonURL))
+	case len(args) == 1:
 		err = login(store, c, promptPassword(c))
-	} else {
-		err = run(store, c)
+	default:
+		err = run(store, c, mastodonURL)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -48,7 +58,22 @@ func main() {
 	}
 }
 
-func run(store account.Keyring, c mailbox.Credentials) error {
+var mastodonSecret = account.Secret{Service: "sip", Name: "mastodon-token"}
+
+func mastodonFeedFor(base string, loc *time.Location) feed {
+	token, err := mastodonSecret.Get()
+	switch {
+	case err != nil:
+		return feed{name: "mastodon", fetch: func(time.Time, time.Time, func(string)) ([]piece.Piece, error) {
+			return nil, err
+		}}
+	case token == "":
+		return feed{name: "mastodon"}
+	}
+	return mastodonFeed(mastodon.Client{BaseURL: base, Token: token}.Home, loc)
+}
+
+func run(store account.Keyring, c mailbox.Credentials, mastodonURL string) error {
 	saved, err := store.Load()
 	if err != nil {
 		return err
@@ -68,7 +93,7 @@ func run(store account.Keyring, c mailbox.Credentials) error {
 	if err != nil {
 		return err
 	}
-	ed, err := buildEdition(session, time.Now(), time.Local, os.Stderr)
+	ed, err := buildEdition(session, []feed{mastodonFeedFor(mastodonURL, time.Local)}, time.Now(), time.Local, os.Stderr)
 	session.Close()
 	if err != nil {
 		return err

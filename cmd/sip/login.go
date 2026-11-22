@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"golang.org/x/term"
 
@@ -11,7 +12,9 @@ import (
 )
 
 // login asks for the password and saves c as the one saved login.
-func login(store interface{ Save([]mailbox.Credentials) error }, c mailbox.Credentials, readPassword func() (string, error)) error {
+func login(store interface {
+	Save([]mailbox.Credentials) error
+}, c mailbox.Credentials, readPassword func() (string, error)) error {
 	pw, err := readPassword()
 	if err != nil {
 		return err
@@ -27,6 +30,30 @@ func login(store interface{ Save([]mailbox.Credentials) error }, c mailbox.Crede
 func promptPassword(c mailbox.Credentials) func() (string, error) {
 	return func() (string, error) {
 		fmt.Fprintf(os.Stderr, "Password for %s@%s: ", c.Username, c.Host)
+		b, err := term.ReadPassword(int(os.Stdin.Fd()))
+		fmt.Fprintln(os.Stderr)
+		return string(b), err
+	}
+}
+
+// loginToken saves the trimmed access token.
+func loginToken(store interface{ Set(string) error }, readToken func() (string, error)) error {
+	tok, err := readToken()
+	if err != nil {
+		return err
+	}
+	tok = strings.TrimSpace(tok)
+	if tok == "" {
+		return errors.New("empty token")
+	}
+	return store.Set(tok)
+}
+
+// promptToken reads an access token from the terminal without echoing it.
+func promptToken(base string) func() (string, error) {
+	return func() (string, error) {
+		fmt.Fprintf(os.Stderr, "Make a token at %s/settings/applications with only the read:statuses scope.\n", base)
+		fmt.Fprintf(os.Stderr, "Access token for %s: ", base)
 		b, err := term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Fprintln(os.Stderr)
 		return string(b), err
