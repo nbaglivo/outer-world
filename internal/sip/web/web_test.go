@@ -247,3 +247,12 @@ func TestPieceShowsBoost(t *testing.T) {
 		t.Errorf("unboosted piece shows a boost")
 	}
 }
+
+func TestBriefFallsBackToHeadline(t *testing.T) {
+	if got := excerpt(piece.Piece{Title: "A title"}); got != "A title" {
+		t.Errorf("excerpt = %q", got)
+	}
+	if got := excerpt(piece.Piece{}); got != "Untitled" {
+		t.Errorf("excerpt = %q", got)
+	}
+}

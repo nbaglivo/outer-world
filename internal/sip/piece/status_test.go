@@ -145,3 +145,20 @@ func TestFromStatusStripsScript(t *testing.T) {
 		t.Errorf("HTML = %s", p.HTML)
 	}
 }
+
+func TestFromStatusImageOnly(t *testing.T) {
+	post := mastodon.Status{
+		URI:     "https://x.example/users/z/statuses/2",
+		Account: mastodon.Account{Acct: "z@x.example"},
+		Attachments: []mastodon.Attachment{
+			{Type: "image", URL: "https://x.example/a.png", Description: "A red fox in the snow"},
+		},
+	}
+	if got := FromStatus(post).Dek; got != "A red fox in the snow" {
+		t.Errorf("Dek with description = %q", got)
+	}
+	post.Attachments[0].Description = ""
+	if got := FromStatus(post).Dek; got != "Photo" {
+		t.Errorf("Dek without description = %q", got)
+	}
+}

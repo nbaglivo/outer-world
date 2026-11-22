@@ -53,6 +53,9 @@ func FromStatus(s mastodon.Status) Piece {
 	if p.Dek == "" {
 		p.Dek = firstSentence(p.Text)
 	}
+	if p.Dek == "" {
+		p.Dek = attachmentDek(post.Attachments)
+	}
 	for _, u := range []string{post.URL, post.URI} {
 		if isHTTP(u) {
 			p.Original = u
@@ -60,6 +63,21 @@ func FromStatus(s mastodon.Status) Piece {
 		}
 	}
 	return p
+}
+
+func attachmentDek(as []mastodon.Attachment) string {
+	if len(as) == 0 {
+		return ""
+	}
+	if d := strings.TrimSpace(as[0].Description); d != "" {
+		return clip(d)
+	}
+	for _, a := range as {
+		if a.Type == "image" {
+			return "Photo"
+		}
+	}
+	return "Attachment"
 }
 
 func accountName(a mastodon.Account) string {
