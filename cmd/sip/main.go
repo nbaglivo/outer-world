@@ -89,11 +89,12 @@ func run(store account.Keyring, c mailbox.Credentials, mastodonURL string) error
 		return fmt.Errorf("no saved password for %s@%s; run sip login", c.Username, c.Host)
 	}
 
+	loc := time.Local
 	session, err := mailbox.Connect(c)
 	if err != nil {
 		return err
 	}
-	ed, err := buildEdition(session, []feed{mastodonFeedFor(mastodonURL, time.Local)}, time.Now(), time.Local, os.Stderr)
+	ed, err := buildEdition(session, []feed{mastodonFeedFor(mastodonURL, loc)}, time.Now(), loc, os.Stderr)
 	session.Close()
 	if err != nil {
 		return err
@@ -101,7 +102,7 @@ func run(store account.Keyring, c mailbox.Credentials, mastodonURL string) error
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	url, wait, err := web.Serve(ctx, web.Handler(ed, time.Local))
+	url, wait, err := web.Serve(ctx, web.Handler(ed, loc))
 	if err != nil {
 		return err
 	}
