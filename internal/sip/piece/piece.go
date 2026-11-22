@@ -19,6 +19,7 @@ type Piece struct {
 	Words                                   int
 	Original                                string // http(s) URL or ""
 	Raw                                     []byte
+	BoostedBy                               string // booster's name, "" unless a boost
 }
 
 // Minutes is the reading time: at least one.
