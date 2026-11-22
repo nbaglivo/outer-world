@@ -81,13 +81,14 @@ full, and a sense of being done at the end.
   then filter on the message's internal date to the exact window. Fetch
   full bodies with `Peek`.
 
-### Fediverse (next milestone, not in the first build)
+### Fediverse (milestone 5)
 
 - From the user's mastodon.social home timeline, read with the Mastodon
   client API (`GET /api/v1/timelines/home`) and an access token from the
   keychain.
 - Design in [sip: fediverse pieces from Mastodon](2026-11-16-sip-fediverse-design.md).
-  stw stays publish-only; its reader API won't be built.
+  stw, the user's publish-only ActivityPub server, stays publish-only; its
+  reader API won't be built.
 
 ## The piece
 
@@ -251,6 +252,10 @@ Shared-code changes:
 - `sip tui` — terminal surface (second milestone).
 - `sip login` — prompt for the IMAP password (no echo) and save it to the
   keychain under service `sip`.
+- `sip login mastodon` — prompt for a mastodon.social access token (scope
+  `read:statuses`, no echo) and save it to the keychain.
+- `-mastodon` / `SIP_MASTODON_URL` — Mastodon server, default
+  `https://mastodon.social`.
 
 ## Testing
 
