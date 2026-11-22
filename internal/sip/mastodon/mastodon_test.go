@@ -3,6 +3,7 @@ package mastodon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -137,6 +138,21 @@ func TestHomeKeepsPagesWithSomeNewer(t *testing.T) {
 	}
 }
 
+func TestHomeLateBoostDoesNotStop(t *testing.T) {
+	all := fixture(t)
+	c, reqs := pages(t, all[:1], []json.RawMessage{})
+	tl, err := c.Home(context.Background(), since)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reqs()) != 2 {
+		t.Errorf("requests = %d, want 2", len(reqs()))
+	}
+	if len(tl.Statuses) != 1 || tl.Complete {
+		t.Errorf("statuses = %d, complete = %v", len(tl.Statuses), tl.Complete)
+	}
+}
+
 func TestHomeShortTimeline(t *testing.T) {
 	all := fixture(t)
 	c, _ := pages(t, all[:2], []json.RawMessage{})
@@ -213,8 +229,9 @@ func TestHomeTimeout(t *testing.T) {
 		writeJSON(t, w, []json.RawMessage{})
 	})
 	c.Timeout = 50 * time.Millisecond
-	if _, err := c.Home(context.Background(), since); err == nil {
-		t.Error("want error")
+	_, err := c.Home(context.Background(), since)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("err = %v, want deadline exceeded", err)
 	}
 }
 
