@@ -83,36 +83,31 @@ full, and a sense of being done at the end.
 
 ### Fediverse (next milestone, not in the first build)
 
-- From the user's warmhole server (`https://ap.nbaglivo.dev`), reader API
-  `GET /reader/v1/sites/inner-monologue/items` with `since` = window start and `until` = cutoff,
-  `order=asc`, paging with `next_cursor`, bearer reader token from the
+- From the user's mastodon.social home timeline, read with the Mastodon
+  client API (`GET /api/v1/timelines/home`) and an access token from the
   keychain.
-- The contract is warmhole's
-  [`docs/reader-api.openapi.json`](../../../../warmhole/docs/reader-api.openapi.json)
-  (repo `nbaglivo/warmhole`); design in its
-  `docs/superpowers/specs/2026-10-16-reader-api-design.md`. warmhole doesn't
-  implement it yet; the client is built and tested against the contract with
-  a fake server serving the contract's examples.
+- Design in [sip: fediverse pieces from Mastodon](2026-11-16-sip-fediverse-design.md).
+  stw stays publish-only; its reader API won't be built.
 
 ## The piece
 
 Every source becomes the same value; everything downstream only knows
 pieces.
 
-| Field | Email | Fediverse item |
+| Field | Email | Mastodon status |
 |---|---|---|
-| `ID` | Message-ID header (fallback: UID) | `id` |
-| `Title` | Subject, with leading list tags like `[Weekly]` removed | `title`; null for notes |
-| `Dek` (one-line summary) | Preheader text if present, else first sentence of the body, ≤ 160 chars | `summary`, else first sentence of `content_text` |
-| `Author` | From display name, else address | `author.name`, else `author.handle` |
-| `Source` | `List-Id` description, else From display name, else From domain | author's server host |
+| `ID` | Message-ID header (fallback: UID) | the post's `uri` |
+| `Title` | Subject, with leading list tags like `[Weekly]` removed | none |
+| `Dek` (one-line summary) | Preheader text if present, else first sentence of the body, ≤ 160 chars | `spoiler_text`, else first sentence of the text |
+| `Author` | From display name, else address | `account.display_name`, else `account.acct` |
+| `Source` | `List-Id` description, else From display name, else From domain | host of `account.url`, else domain in `acct` |
 | `Channel` | `email` | `fediverse` |
-| `Published` (shown in the byline) | Date header, else internal date | `published` |
-| `Arrived` (decides the window) | IMAP internal date | `received_at` |
-| `HTML` | cleaned body HTML (see Cleaning) | `content_html` (already sanitized by warmhole) |
-| `Text` | text/plain part, else text derived from HTML | `content_text` |
+| `Published` (shown in the byline) | Date header, else internal date | the post's `created_at` |
+| `Arrived` (decides the window) | IMAP internal date | the outer status's `created_at` |
+| `HTML` | cleaned body HTML (see Cleaning) | `content`, attachments and link card, cleaned like email |
+| `Text` | text/plain part, else text derived from HTML | the cleaned text |
 | `Words` / `Minutes` | word count of `Text`; minutes = ceil(words / 230), min 1 | same |
-| `Original` | `List-Post`/"view in browser" link if found, else none | `url` |
+| `Original` | `List-Post`/"view in browser" link if found, else none | `url`, else `uri` |
 | `Raw` | the RFC 822 bytes (for "open in nmail/mail app") | none |
 
 Boosts show "boosted by …" in the byline.
@@ -231,11 +226,11 @@ internal/mailbox/          shared IMAP (adds a window query)
 internal/account/          shared keychain (service name becomes a parameter)
 internal/render/           shared: email → terminal text
 internal/ui/               nmail's TUI (unchanged)
-internal/sip/piece/        Piece, email → Piece, fediverse item → Piece
+internal/sip/piece/        Piece, email → Piece, Mastodon status → Piece
 internal/sip/edition/      Compose, Ranker
 internal/sip/web/          HTML templates, assets, local server, PDF
 internal/sip/tui/          terminal surface
-internal/sip/warmhole/     reader API client (next milestone)
+internal/sip/mastodon/     home timeline client
 ```
 
 Shared-code changes:
@@ -269,8 +264,8 @@ Shared-code changes:
 - Templates: golden HTML for a fixture edition.
 - `mailbox.Window`: against the existing IMAP test setup in
   `internal/mailbox/imap_test.go`.
-- warmhole client (next milestone): against a fake server that serves the
-  OpenAPI examples.
+- Mastodon client: against a fake server serving status JSON (see the
+  [milestone spec](2026-11-16-sip-fediverse-design.md)).
 
 ## Milestones
 
@@ -280,9 +275,11 @@ Shared-code changes:
    front page and piece pages, `sip login`.
 3. **PDF**.
 4. **Terminal surface**.
-5. **Fediverse** via the warmhole contract.
-6. **Native window**.
-7. **Scheduled build**: a launchd job at 06:30 that writes the day's PDF, so
+5. **Fediverse** from the Mastodon home timeline, see
+   [the milestone spec](2026-11-16-sip-fediverse-design.md).
+6. **Bluesky**: a second feed from `app.bsky.feed.getTimeline`.
+7. **Native window**.
+8. **Scheduled build**: a launchd job at 06:30 that writes the day's PDF, so
    the paper is waiting (optional; the stateless cutoff already makes the
    edition fixed).
 
