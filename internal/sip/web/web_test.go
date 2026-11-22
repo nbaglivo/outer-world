@@ -230,3 +230,20 @@ func TestPagesAreLockedDown(t *testing.T) {
 		}
 	}
 }
+
+func TestPieceShowsBoost(t *testing.T) {
+	ed, loc := fixture(t)
+	ed.Lead.Author = "Bob's notebook"
+	ed.Lead.BoostedBy = "Carol"
+	ed.Lead.Channel = "fediverse"
+	body := get(t, Handler(ed, loc), "/p/1").Body.String()
+	want := "<span>By Bob&#39;s notebook</span><span>boosted by Carol</span>"
+	if !strings.Contains(body, want) {
+		t.Errorf("/p/1 lacks %q", want)
+	}
+
+	plain := get(t, Handler(fixture(t)), "/p/1").Body.String()
+	if strings.Contains(plain, "boosted by") {
+		t.Errorf("unboosted piece shows a boost")
+	}
+}
